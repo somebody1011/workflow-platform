@@ -28,7 +28,7 @@ export default function Home() {
             <Link href="/login">
               <Button variant="ghost" size="sm">Sign in</Button>
             </Link>
-            <Link href="/login">
+            <Link href="/signup">
               <Button size="sm">Get Started</Button>
             </Link>
           </div>
