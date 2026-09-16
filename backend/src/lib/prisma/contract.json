@@ -188,6 +188,13 @@
                   "kind": "scalar"
                 }
               },
+              "firstName": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "id": {
                 "nullable": false,
                 "type": {
@@ -195,7 +202,7 @@
                   "kind": "scalar"
                 }
               },
-              "name": {
+              "lastName": {
                 "nullable": false,
                 "type": {
                   "codecId": "pg/text@1",
@@ -235,11 +242,14 @@
                 "email": {
                   "column": "email"
                 },
+                "firstName": {
+                  "column": "firstName"
+                },
                 "id": {
                   "column": "id"
                 },
-                "name": {
-                  "column": "name"
+                "lastName": {
+                  "column": "lastName"
                 },
                 "passwordHash": {
                   "column": "passwordHash"
@@ -409,12 +419,17 @@
                   "nativeType": "text",
                   "nullable": false
                 },
+                "firstName": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
                 "id": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
                   "nullable": false
                 },
-                "name": {
+                "lastName": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
                   "nullable": false
@@ -446,7 +461,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "427f06eb3b8c4a7e8123953bd71776371febab1f9e1ad6fbde0056523b9b8301"
+    "storageHash": "ef0774479ebdebe3bcea0da9a4e4c5a27a75038aa54bdab44ef42901a6c3c3d8"
   },
   "execution": {
     "executionHash": "8b5d394c7f8b46ed96e30ff604ae0a87d3b447088ff17118461a73cf9d097bbc",
