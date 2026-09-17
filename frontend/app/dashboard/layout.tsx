@@ -1,3 +1,6 @@
+"use client"
+
+import { useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,6 +16,7 @@ import {
   Bell,
   Search,
 } from "lucide-react"
+import { useAuth } from "@/app/auth/AuthProvider"
 
 const sidebarItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -25,6 +29,26 @@ const sidebarItems = [
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { user, loading, logout } = useAuth()
+
+  useEffect(() => {
+    if (!loading && !user) {
+      window.location.href = "/login"
+    }
+  }, [user, loading])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/40">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null
+  }
+
   return (
     <div className="flex min-h-screen bg-muted/40">
       <aside className="fixed inset-y-0 left-0 z-10 w-64 border-r border-border bg-background">
@@ -49,11 +73,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 rounded-full bg-primary/10" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">Elisha Mwangi</p>
-                <p className="text-xs text-muted-foreground truncate">Developer</p>
+                <p className="text-sm font-medium truncate">{user.firstName} {user.lastName}</p>
+                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" className="mt-3 w-full justify-start gap-2">
+            <Button variant="ghost" size="sm" className="mt-3 w-full justify-start gap-2" onClick={logout}>
               <LogOut className="h-4 w-4" />
               Sign Out
             </Button>

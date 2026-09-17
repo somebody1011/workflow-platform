@@ -37,7 +37,7 @@ export default function Home() {
 
       <main>
         <section className="relative overflow-hidden border-b border-border/40">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-background" />
+          <div className="absolute inset-0 bg-linear-to-br from-primary/5 via-background to-background" />
           <div className="relative mx-auto max-w-7xl px-6 py-24 lg:py-32">
             <div className="mx-auto max-w-3xl text-center">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">

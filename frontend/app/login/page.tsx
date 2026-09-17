@@ -3,6 +3,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import * as z from "zod"
+import { useAuth } from "@/app/auth/AuthProvider"
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email" }),
@@ -24,6 +25,7 @@ export default function LoginPage() {
   })
   const [errors, setErrors] = useState<FieldErrors>({})
   const [submitting, setSubmitting] = useState(false)
+  const { login } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,6 +58,13 @@ export default function LoginPage() {
         setErrors({ form: data.error || "Something went wrong" })
         return
       }
+
+      login({
+        id: data.id,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+      })
 
       window.location.href = "/dashboard"
     } catch {
