@@ -7,8 +7,11 @@ model User {
   email        String   @unique
   passwordHash String?
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
 
   organizationMembers OrganizationMember[]
+  uploadedDocuments    Document[] @relation("DocumentUploadedBy")
+  approvalActions      ApprovalAction[]
 }
 
 model Organization {
@@ -16,18 +19,147 @@ model Organization {
   name      String
   type      String   @default("personal")
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 
   members OrganizationMember[]
+  roles   Role[]
+  departments Department[]
+  workflows Workflow[]
+  documents Document[]
 }
 
 model OrganizationMember {
   id             String       @id @default(uuid())
-  userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId         String?
+  role           Role?        @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  departmentId   String?
+  department     Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  status         String       @default("active")
   createdAt      DateTime     @default(now())
 
   @@unique([userId, organizationId])
   @@map("organization_members")
+}
+
+model Role {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime @default(now())
+
+  members OrganizationMember[]
+  workflowSteps WorkflowStep[]
+
+  @@unique([organizationId, name])
+  @@map("roles")
+}
+
+model Department {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime @default(now())
+
+  members OrganizationMember[]
+  workflowSteps WorkflowStep[]
+
+  @@unique([organizationId, name])
+  @@map("departments")
+}
+
+model Workflow {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  documentType   String
+  status         String       @default("active")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime @default(now())
+
+  steps WorkflowStep[]
+  approvalRequests ApprovalRequest[]
+
+  @@index([organizationId])
+}
+
+model WorkflowStep {
+  id             String   @id @default(uuid())
+  workflowId     String
+  workflow       Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stepOrder      Int
+  approverType   String
+  approverRoleId String?
+  approverRole   Role?    @relation(fields: [approverRoleId], references: [id], onDelete: SetNull)
+  departmentId   String?
+  department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([workflowId])
+}
+
+model ApprovalRequest {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflowId     String
+  workflow       Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  documentId     String
+  document       Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  submittedBy    String
+  submittedByUser User @relation(fields: [submittedBy], references: [id])
+  status         String   @default("pending")
+  currentStep    Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now())
+
+  actions ApprovalAction[]
+
+  @@index([workflowId])
+  @@index([documentId])
+  @@index([organizationId])
+}
+
+model ApprovalAction {
+  id                String         @id @default(uuid())
+  approvalRequestId String
+  approvalRequest   ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  actorId           String
+  actor             User           @relation(fields: [actorId], references: [id])
+  action            String         @default("approve")
+  comment           String?
+  stepNumber        Int
+  createdAt         DateTime       @default(now())
+
+  @@map("approval_actions")
+}
+
+model Document {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  originalName   String
+  mimeType       String
+  size           Int
+  storageKey     String   @unique
+  checksum       String?
+  virusScanStatus String  @default("pending")
+  status         String   @default("active")
+  uploadedBy     String
+  uploadedByUser User    @relation("DocumentUploadedBy", fields: [uploadedBy], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now())
+
+  approvalRequests ApprovalRequest[]
+
+  @@index([organizationId])
+  @@index([uploadedBy])
 }
