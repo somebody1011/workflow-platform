@@ -26,7 +26,10 @@ type FieldErrors = {
   form?: string
 }
 
+type OnboardingChoice = "personal" | "create" | "join" | null
+
 export default function SigninPage() {
+  const [step, setStep] = useState<"form" | "onboarding">("form")
   const [form, setForm] = useState<FormValues>({
     firstName: "",
     lastName: "",
@@ -36,6 +39,11 @@ export default function SigninPage() {
   })
   const [errors, setErrors] = useState<FieldErrors>({})
   const [submitting, setSubmitting] = useState(false)
+  const [onboardingChoice, setOnboardingChoice] = useState<OnboardingChoice>(null)
+  const [orgName, setOrgName] = useState("")
+  const [orgError, setOrgError] = useState("")
+  const [joinCode, setJoinCode] = useState("")
+  const [joinError, setJoinError] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,6 +71,7 @@ export default function SigninPage() {
           email: form.email.trim(),
           password: form.password,
         }),
+        credentials: "include",
       })
 
       const data = await response.json()
@@ -71,12 +80,155 @@ export default function SigninPage() {
         return
       }
 
-      window.location.href = "/login"
+      setStep("onboarding")
     } catch {
       setErrors({ form: "Unable to reach the server. Please try again." })
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleCreateOrg = async () => {
+    if (!orgName.trim()) {
+      setOrgError("Organization name is required")
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const response = await fetch("http://localhost:5000/api/v1/organizations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: orgName.trim(), type: "organization" }),
+        credentials: "include",
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        setOrgError(data.error || "Failed to create organization")
+        return
+      }
+
+      window.location.href = "/dashboard"
+    } catch {
+      setOrgError("Unable to reach the server. Please try again.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleJoinOrg = async () => {
+    if (!joinCode.trim()) {
+      setJoinError("Organization ID or invitation code is required")
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const response = await fetch("http://localhost:5000/api/v1/organizations/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: joinCode.trim() }),
+        credentials: "include",
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        setJoinError(data.error || "Failed to join organization")
+        return
+      }
+
+      window.location.href = "/dashboard"
+    } catch {
+      setJoinError("Unable to reach the server. Please try again.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handlePersonal = () => {
+    window.location.href = "/dashboard"
+  }
+
+  if (step === "onboarding") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/40">
+        <div className="w-full max-w-md space-y-8 rounded-2xl border border-border bg-background p-8 shadow-lg">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <div className="h-12 w-12 rounded-xl bg-primary" />
+            <h1 className="text-2xl font-bold">Welcome to FlowApprove</h1>
+            <p className="text-sm text-muted-foreground">How do you plan to use FlowApprove?</p>
+          </div>
+
+          <div className="mt-8 space-y-3">
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={handlePersonal}
+              disabled={submitting}
+            >
+              Personal use
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => setOnboardingChoice("create")}
+              disabled={submitting}
+            >
+              Create company/organization
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => setOnboardingChoice("join")}
+              disabled={submitting}
+            >
+              Join existing organization
+            </Button>
+          </div>
+
+          {onboardingChoice === "create" && (
+            <div className="mt-6 space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="orgName" className="text-sm font-medium">Organization name</label>
+                <input
+                  id="orgName"
+                  type="text"
+                  placeholder="Acme Inc."
+                  value={orgName}
+                  onChange={(e) => { setOrgName(e.target.value); setOrgError("") }}
+                  className="h-10 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                {orgError && <p className="text-xs text-red-500">{orgError}</p>}
+              </div>
+              <Button type="button" className="w-full" onClick={handleCreateOrg} disabled={submitting}>
+                {submitting ? "Creating..." : "Create Organization"}
+              </Button>
+            </div>
+          )}
+
+          {onboardingChoice === "join" && (
+            <div className="mt-6 space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="joinCode" className="text-sm font-medium">Organization ID or invitation code</label>
+                <input
+                  id="joinCode"
+                  type="text"
+                  placeholder="Enter ID or code"
+                  value={joinCode}
+                  onChange={(e) => { setJoinCode(e.target.value); setJoinError("") }}
+                  className="h-10 w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                {joinError && <p className="text-xs text-red-500">{joinError}</p>}
+              </div>
+              <Button type="button" className="w-full" onClick={handleJoinOrg} disabled={submitting}>
+                {submitting ? "Joining..." : "Join Organization"}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
