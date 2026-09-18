@@ -51,6 +51,7 @@ export default function LoginPage() {
           email: form.email.trim(),
           password: form.password,
         }),
+        credentials: "include",
       })
 
       const data = await response.json()
