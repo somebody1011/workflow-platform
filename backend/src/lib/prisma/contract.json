@@ -538,6 +538,13 @@
                   "kind": "scalar"
                 }
               },
+              "url": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "virusScanStatus": {
                 "nullable": false,
                 "type": {
@@ -632,6 +639,9 @@
                 },
                 "uploadedBy": {
                   "column": "uploadedBy"
+                },
+                "url": {
+                  "column": "url"
                 },
                 "virusScanStatus": {
                   "column": "virusScanStatus"
@@ -1849,6 +1859,11 @@
                   "nativeType": "text",
                   "nullable": false
                 },
+                "url": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
                 "virusScanStatus": {
                   "codecId": "pg/text@1",
                   "default": {
@@ -2489,7 +2504,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "9bda4d99c608074f4aeefd12f61f4a87193fe57529b9b4e5ebbab9c82807da13"
+    "storageHash": "c7312ae5d5171bdb1c4a235817349291b3b948cb52a83fb2341cba39a58cb9a0"
   },
   "execution": {
     "executionHash": "88619cc28886978363f17c0213f5518fc074f10b3d053708f6cf69ff651fe842",

@@ -150,6 +150,7 @@ model Document {
   mimeType       String
   size           Int
   storageKey     String   @unique
+  url            String
   checksum       String?
   virusScanStatus String  @default("pending")
   status         String   @default("active")

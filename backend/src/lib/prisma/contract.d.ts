@@ -34,7 +34,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'9bda4d99c608074f4aeefd12f61f4a87193fe57529b9b4e5ebbab9c82807da13'>;
+  StorageHashBase<'c7312ae5d5171bdb1c4a235817349291b3b948cb52a83fb2341cba39a58cb9a0'>;
 export type ExecutionHash =
   ExecutionHashBase<'88619cc28886978363f17c0213f5518fc074f10b3d053708f6cf69ff651fe842'>;
 export type ProfileHash =
@@ -277,6 +277,7 @@ export type FieldOutputTypes = {
       readonly mimeType: CodecTypes['pg/text@1']['output'];
       readonly size: CodecTypes['pg/int4@1']['output'];
       readonly storageKey: CodecTypes['pg/text@1']['output'];
+      readonly url: CodecTypes['pg/text@1']['output'];
       readonly checksum: CodecTypes['pg/text@1']['output'] | null;
       readonly virusScanStatus: CodecTypes['pg/text@1']['output'];
       readonly status: CodecTypes['pg/text@1']['output'];
@@ -372,6 +373,7 @@ export type FieldInputTypes = {
       readonly mimeType: CodecTypes['pg/text@1']['input'];
       readonly size: CodecTypes['pg/int4@1']['input'];
       readonly storageKey: CodecTypes['pg/text@1']['input'];
+      readonly url: CodecTypes['pg/text@1']['input'];
       readonly checksum: CodecTypes['pg/text@1']['input'] | null;
       readonly virusScanStatus: CodecTypes['pg/text@1']['input'];
       readonly status: CodecTypes['pg/text@1']['input'];
@@ -472,6 +474,7 @@ export type StorageColumnTypes = {
       readonly storageKey: CodecTypes['pg/text@1']['output'];
       readonly updatedAt: CodecTypes['pg/timestamptz-temporal@1']['output'];
       readonly uploadedBy: CodecTypes['pg/text@1']['output'];
+      readonly url: CodecTypes['pg/text@1']['output'];
       readonly virusScanStatus: CodecTypes['pg/text@1']['output'];
     };
     readonly organization: {
@@ -567,6 +570,7 @@ export type StorageColumnInputTypes = {
       readonly storageKey: CodecTypes['pg/text@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamptz-temporal@1']['input'];
       readonly uploadedBy: CodecTypes['pg/text@1']['input'];
+      readonly url: CodecTypes['pg/text@1']['input'];
       readonly virusScanStatus: CodecTypes['pg/text@1']['input'];
     };
     readonly organization: {
@@ -747,6 +751,7 @@ export namespace Models {
     mimeType: CodecTypes['pg/text@1']['output'];
     size: CodecTypes['pg/int4@1']['output'];
     storageKey: CodecTypes['pg/text@1']['output'];
+    url: CodecTypes['pg/text@1']['output'];
     checksum: CodecTypes['pg/text@1']['output'] | null;
     virusScanStatus: CodecTypes['pg/text@1']['output'];
     status: CodecTypes['pg/text@1']['output'];
@@ -1104,6 +1109,11 @@ type ContractBase = Omit<
                   readonly nullable: false;
                 };
                 readonly storageKey: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly url: {
                   readonly nativeType: 'text';
                   readonly codecId: 'pg/text@1';
                   readonly nullable: false;
@@ -1957,6 +1967,10 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
+              readonly url: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
               readonly checksum: {
                 readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
@@ -2033,6 +2047,7 @@ type ContractBase = Omit<
                 readonly mimeType: { readonly column: 'mimeType' };
                 readonly size: { readonly column: 'size' };
                 readonly storageKey: { readonly column: 'storageKey' };
+                readonly url: { readonly column: 'url' };
                 readonly checksum: { readonly column: 'checksum' };
                 readonly virusScanStatus: { readonly column: 'virusScanStatus' };
                 readonly status: { readonly column: 'status' };
