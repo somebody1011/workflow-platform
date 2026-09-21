@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { db } from "../lib/prisma/db";
 import type { Request, Response } from "express";
+import type { AuthRequest } from "../middleware/auth";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -32,12 +33,10 @@ export const createUser = async (req: Request, res: Response) => {
     const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await db.orm.public.User.create({
-      
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim(),
-        passwordHash,
-      
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim(),
+      passwordHash,
     });
 
     const token = jwt.sign(
@@ -53,8 +52,6 @@ export const createUser = async (req: Request, res: Response) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // const { passwordHash: _, ...safeUser } = user as any;
-    // Clean response without using 'as any'
     const safeUser = {
       id: user.id,
       email: user.email,
@@ -114,4 +111,19 @@ export const loginUser = async (req: Request, res: Response) => {
 export const logoutUser = async (_req: Request, res: Response) => {
   res.clearCookie("token");
   res.status(200).json({ message: "Logged out successfully" });
+};
+
+export const getMyOrganizations = async (req: AuthRequest, res: Response) => {
+  try {
+    const memberships = await db.orm.public.OrganizationMember.where({
+      userId: req.user!.id,
+    }).include("organization").all();
+
+    const organizations = memberships.map((membership) => membership.organization);
+
+    res.status(200).json(organizations);
+  } catch (error) {
+    console.error("Get organizations error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 };
