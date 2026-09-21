@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import {
   Download,
   Eye,
-  MoreHorizontal,
+  Trash2,
   Search,
   Filter,
   Upload,
@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  FileType2,
 } from "lucide-react"
 import { useAuth } from "@/app/auth/AuthProvider"
 
@@ -54,6 +55,25 @@ const ALLOWED_TYPES = [
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024
 
+function getViewerType(mimeType: string) {
+  if (mimeType.startsWith("image/")) return "image"
+  if (mimeType === "application/pdf") return "pdf"
+  if (mimeType.startsWith("text/")) return "text"
+  return "unsupported"
+}
+
+function canPreviewDocument(mimeType: string) {
+  return getViewerType(mimeType) !== "unsupported"
+}
+
+function getDocumentUrl(doc: Document) {
+  if (!doc.url) return null
+  if (doc.url.includes("supabase.co")) {
+    return `http://localhost:5000/api/v1/documents/${doc.id}/download`
+  }
+  return doc.url
+}
+
 export default function DocumentsPage() {
   const { user } = useAuth()
   const [search, setSearch] = useState("")
@@ -65,6 +85,9 @@ export default function DocumentsPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [loadingOrgs, setLoadingOrgs] = useState(true)
+  const [loadingDocs, setLoadingDocs] = useState(false)
+  const [viewingDoc, setViewingDoc] = useState<Document | null>(null)
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -94,6 +117,31 @@ export default function DocumentsPage() {
 
     fetchOrganizations()
   }, [])
+
+  useEffect(() => {
+    if (!selectedOrgId) return
+
+    const fetchDocuments = async () => {
+      setLoadingDocs(true)
+      try {
+        const response = await fetch(`http://localhost:5000/api/v1/documents?organizationId=${encodeURIComponent(selectedOrgId)}`, {
+          method: "GET",
+          credentials: "include",
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setDocuments(data)
+        }
+      } catch (error) {
+        console.error("Failed to fetch documents:", error)
+      } finally {
+        setLoadingDocs(false)
+      }
+    }
+
+    fetchDocuments()
+  }, [selectedOrgId])
 
   const refreshOrganizations = async () => {
     try {
@@ -159,12 +207,48 @@ export default function DocumentsPage() {
       }
 
       setUploadSuccess(`"${data.originalName}" uploaded successfully`)
-      setDocuments((prev) => [data, ...prev])
+      refreshDocuments()
       refreshOrganizations()
     } catch {
       setUploadError("Unable to reach the server. Please try again.")
     } finally {
       setUploading(false)
+    }
+  }
+
+  const handleDelete = async (docId: string) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/v1/documents/${docId}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        setUploadError(data.error || "Failed to delete document")
+        return
+      }
+
+      setDocuments((prev) => prev.filter((doc) => doc.id !== docId))
+      setDeletingDocId(null)
+    } catch {
+      setUploadError("Unable to reach the server. Please try again.")
+    }
+  }
+
+  const refreshDocuments = async () => {
+    if (!selectedOrgId) return
+    try {
+      const response = await fetch(`http://localhost:5000/api/v1/documents?organizationId=${encodeURIComponent(selectedOrgId)}`, {
+        method: "GET",
+        credentials: "include",
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setDocuments(data)
+      }
+    } catch (error) {
+      console.error("Failed to refresh documents:", error)
     }
   }
 
@@ -307,7 +391,13 @@ export default function DocumentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {documents.length === 0 ? (
+              {loadingDocs ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    Loading documents...
+                  </td>
+                </tr>
+              ) : documents.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     No documents uploaded yet. Upload your first document above.
@@ -336,30 +426,37 @@ export default function DocumentsPage() {
                       {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : "-"}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        {doc.url && (
-                          <a
-                            href={doc.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted"
-                            aria-label={`View ${doc.originalName}`}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </a>
-                        )}
-                        {doc.url && (
-                          <a
-                            href={doc.url}
-                            download={doc.originalName}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted"
-                            aria-label={`Download ${doc.originalName}`}
-                          >
-                            <Download className="h-4 w-4" />
-                          </a>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setViewingDoc(doc)}
+                          aria-label="View"
+                          disabled={!doc.url || !canPreviewDocument(doc.mimeType)}
+                        >
+                          <Eye className={`h-4 w-4 ${!doc.url || !canPreviewDocument(doc.mimeType) ? "opacity-30" : ""}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label="Download"
+                          onClick={() => {
+                            window.location.href = `http://localhost:5000/api/v1/documents/${doc.id}/download`
+                          }}
+                          disabled={!doc.url}
+                        >
+                          <Download className={`h-4 w-4 ${!doc.url ? "opacity-30" : ""}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeletingDocId(doc.id)}
+                          aria-label="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </td>
@@ -370,6 +467,147 @@ export default function DocumentsPage() {
           </table>
         </div>
       </Card>
+
+      {viewingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setViewingDoc(null)}>
+          <div className="relative max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg bg-background shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="truncate text-sm font-medium">{viewingDoc.originalName}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{formatSize(viewingDoc.size)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setViewingDoc(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex max-h-[calc(90vh-56px)] items-center justify-center overflow-auto bg-muted/40 p-4">
+              {viewingDoc.url ? (
+                <DocumentPreview doc={viewingDoc} />
+              ) : (
+                <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-white p-8 text-center">
+                  <FileType2 className="h-10 w-10 text-muted-foreground" />
+                  <p className="text-sm font-medium">Preview unavailable</p>
+                  <p className="text-xs text-muted-foreground">
+                    The file URL is missing. Please delete and re-upload this document to view it.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingDocId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setDeletingDocId(null)}>
+          <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold">Delete document</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Are you sure you want to delete this document? This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeletingDocId(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => deletingDocId && handleDelete(deletingDocId)}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DocumentPreview({ doc }: { doc: Document }) {
+  const [textContent, setTextContent] = useState<string | null>(null)
+  const [loadingText, setLoadingText] = useState(false)
+  const [textError, setTextError] = useState<string | null>(null)
+
+  const resolvedUrl = getDocumentUrl(doc)
+
+  useEffect(() => {
+    if (doc.mimeType.startsWith("text/") && resolvedUrl) {
+      setLoadingText(true)
+      setTextError(null)
+      setTextContent(null)
+      fetch(resolvedUrl)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to load file")
+          return res.text()
+        })
+        .then((text) => {
+          setTextContent(text)
+        })
+        .catch((err) => {
+          setTextError(err.message)
+        })
+        .finally(() => {
+          setLoadingText(false)
+        })
+    }
+  }, [doc.mimeType, resolvedUrl])
+
+  const viewerType = getViewerType(doc.mimeType)
+
+  if (viewerType === "image") {
+    return (
+      <img
+        src={resolvedUrl ?? doc.url}
+        alt={doc.originalName}
+        className="max-h-[calc(90vh-100px)] max-w-full rounded-md object-contain"
+      />
+    )
+  }
+
+  if (viewerType === "pdf") {
+    return (
+      <iframe
+        src={resolvedUrl ?? doc.url}
+        title={doc.originalName}
+        className="h-[calc(90vh-100px)] w-full max-w-4xl rounded-md border border-border bg-white"
+        allow="autoplay"
+      />
+    )
+  }
+
+  if (viewerType === "text") {
+    return (
+      <div className="max-h-[calc(90vh-100px)] w-full max-w-4xl overflow-auto rounded-md border border-border bg-white p-6">
+        {loadingText && <p className="text-sm text-muted-foreground">Loading...</p>}
+        {textError && <p className="text-sm text-red-600">{textError}</p>}
+        {!loadingText && !textError && (
+          <pre className="whitespace-pre-wrap break-words text-sm">{textContent}</pre>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-white p-8 text-center">
+      <FileType2 className="h-10 w-10 text-muted-foreground" />
+      <p className="text-sm font-medium">Preview not available</p>
+      <p className="text-xs text-muted-foreground">
+        Open this file in a new tab to view its contents.
+      </p>
+      <div className="flex gap-2">
+        {resolvedUrl && (
+          <a
+            href={resolvedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Open in new tab
+          </a>
+        )}
+      </div>
     </div>
   )
 }
