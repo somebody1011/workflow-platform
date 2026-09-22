@@ -1,50 +1,177 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
-import { ArrowRight, User, Settings, Plus, Trash2 } from "lucide-react"
+import { ArrowRight, User, Settings, Plus, Trash2, Loader2 } from "lucide-react"
+import { createWorkflow, updateWorkflow, getWorkflow, type Workflow, type WorkflowStep } from "@/lib/api/workflows"
+import { useAuth } from "@/app/auth/AuthProvider"
 
-const initialSteps = [
-  { id: 1, name: "Start", type: "start" },
-  { id: 2, name: "Finance Manager", type: "approver", role: "Finance Manager" },
-  { id: 3, name: "Director", type: "approver", role: "Director" },
-  { id: 4, name: "End", type: "end" },
-]
+type StepType = "start" | "approver" | "end"
+
+interface BuilderStep {
+  id: string
+  name: string
+  type: StepType
+  approverType: "user" | "role" | "department"
+  approverRoleId: string
+  departmentId: string
+  stepOrder: number
+}
+
+const EMPTY_STEP: Omit<BuilderStep, "id"> = {
+  name: "",
+  type: "approver",
+  approverType: "role",
+  approverRoleId: "",
+  departmentId: "",
+  stepOrder: 0,
+}
 
 export default function WorkflowBuilderPage() {
-  const [steps, setSteps] = useState(initialSteps)
-  const [activeStep, setActiveStep] = useState<number | null>(null)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const editId = searchParams.get("id")
+  const { user } = useAuth()
+
+  const [name, setName] = useState("")
+  const [documentType, setDocumentType] = useState("")
+  const [active, setActive] = useState(true)
+  const [steps, setSteps] = useState<BuilderStep[]>([])
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const selectedStep = steps.find((s) => s.id === selectedStepId) ?? null
+
+  useEffect(() => {
+    if (!editId) return
+    setLoading(true)
+    setError(null)
+    getWorkflow(editId)
+      .then((workflow) => {
+        setName(workflow.name)
+        setDocumentType(workflow.documentType)
+        setActive(workflow.status === "active")
+        setSteps(
+          workflow.steps.map((step) => ({
+            id: step.id,
+            name: "",
+            type: "approver" as StepType,
+            approverType: step.approverType,
+            approverRoleId: step.approverRoleId ?? "",
+            departmentId: step.departmentId ?? "",
+            stepOrder: step.stepOrder,
+          }))
+        )
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load workflow"))
+      .finally(() => setLoading(false))
+  }, [editId])
+
+  const updateStep = (id: string, patch: Partial<BuilderStep>) => {
+    setSteps((prev) => prev.map((step) => (step.id === id ? { ...step, ...patch } : step)))
+  }
+
+  const addStep = () => {
+    const newStep: BuilderStep = {
+      ...EMPTY_STEP,
+      id: crypto.randomUUID(),
+      stepOrder: steps.length + 1,
+      name: `Step ${steps.length + 1}`,
+    }
+    setSteps((prev) => [...prev, newStep])
+    setSelectedStepId(newStep.id)
+  }
+
+  const removeStep = (id: string) => {
+    setSteps((prev) => {
+      const next = prev.filter((step) => step.id !== id)
+      return next.map((step, index) => ({ ...step, stepOrder: index + 1 }))
+    })
+    setSelectedStepId((current) => (current === id ? null : current))
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const payload = {
+        name,
+        documentType,
+        status: active ? "active" : "inactive",
+        steps: steps.map(({ id: _id, name: _name, type: _type, ...step }) => step),
+      }
+
+      if (editId) {
+        await updateWorkflow(editId, payload)
+      } else {
+        await createWorkflow(payload)
+      }
+      router.push("/dashboard/workflows")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save workflow")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+        Loading workflow...
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Workflow Builder</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{editId ? "Edit Workflow" : "Workflow Builder"}</h1>
           <p className="text-muted-foreground">Design and configure approval workflows for different document types.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline">Cancel</Button>
-          <Button>Save Workflow</Button>
+          <Button variant="outline" onClick={() => router.push("/dashboard/workflows")}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving || !name.trim() || !documentType.trim() || steps.length === 0}>
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {editId ? "Update Workflow" : "Save Workflow"}
+          </Button>
         </div>
       </div>
+
+      {error && (
+        <Card className="p-4">
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
+            {error}
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Card className="p-6">
             <div className="mb-4">
               <Label htmlFor="workflow-name">Workflow Name</Label>
-              <Input id="workflow-name" defaultValue="Purchase Request" className="mt-1" />
+              <Input id="workflow-name" value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
+            </div>
+
+            <div className="mb-4">
+              <Label htmlFor="document-type">Document Type</Label>
+              <Input id="document-type" value={documentType} onChange={(e) => setDocumentType(e.target.value)} className="mt-1" />
             </div>
 
             <div className="flex items-center justify-between">
               <Label>Step Configuration</Label>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Active</span>
-                <Switch defaultChecked />
+                <span className="text-sm text-muted-foreground">{active ? "Active" : "Inactive"}</span>
+                <Switch checked={active} onCheckedChange={setActive} />
               </div>
             </div>
 
@@ -54,39 +181,37 @@ export default function WorkflowBuilderPage() {
                   <div key={step.id} className="flex flex-col items-center gap-2 w-full">
                     <div
                       className={`flex w-full max-w-md items-center gap-3 rounded-lg border-2 p-4 cursor-pointer transition-colors ${
-                        activeStep === step.id ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"
+                        selectedStepId === step.id ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"
                       }`}
-                      onClick={() => setActiveStep(step.id)}
+                      onClick={() => setSelectedStepId(step.id)}
                     >
-                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                        step.type === "start" || step.type === "end" ? "bg-primary text-primary-foreground" : "bg-muted"
-                      }`}>
-                        {step.type === "start" || step.type === "end" ? (
-                          step.type === "start" ? <ArrowRight className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />
-                        ) : (
-                          <User className="h-4 w-4" />
-                        )}
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                        <User className="h-4 w-4" />
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium">{step.name}</p>
-                        {step.role && <p className="text-sm text-muted-foreground">{step.role}</p>}
+                        <p className="font-medium">{step.name || `Step ${step.stepOrder}`}</p>
+                        <p className="text-sm text-muted-foreground">{step.approverType} · Order {step.stepOrder}</p>
                       </div>
-                      {step.type === "approver" && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          removeStep(step.id)
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                    {index < steps.length - 1 && (
-                      <div className="h-8 w-0.5 bg-border" />
-                    )}
+                    {index < steps.length - 1 && <div className="h-8 w-0.5 bg-border" />}
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="mt-6 flex items-center gap-2">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={addStep}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Step
               </Button>
@@ -97,71 +222,45 @@ export default function WorkflowBuilderPage() {
         <div className="space-y-6">
           <Card className="p-6">
             <h3 className="font-semibold mb-4">Step Configuration</h3>
-            {activeStep ? (
+            {selectedStep ? (
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="step-name">Step Name</Label>
-                  <Input id="step-name" defaultValue={steps.find(s => s.id === activeStep)?.name} />
+                  <Input id="step-name" value={selectedStep.name} onChange={(e) => updateStep(selectedStep.id, { name: e.target.value })} />
                 </div>
-                {steps.find(s => s.id === activeStep)?.type === "approver" && (
+                <div className="space-y-2">
+                  <Label htmlFor="approver-type">Approver Type</Label>
+                  <select
+                    id="approver-type"
+                    value={selectedStep.approverType}
+                    onChange={(e) => updateStep(selectedStep.id, { approverType: e.target.value as BuilderStep["approverType"] })}
+                    className="h-9 w-full rounded-lg border border-border bg-transparent px-3 py-1 text-sm"
+                  >
+                    <option value="role">Role</option>
+                    <option value="department">Department</option>
+                    <option value="user">User</option>
+                  </select>
+                </div>
+                {selectedStep.approverType === "role" && (
                   <div className="space-y-2">
-                    <Label htmlFor="approver-role">Approver Role</Label>
-                    <Input id="approver-role" defaultValue={steps.find(s => s.id === activeStep)?.role} />
+                    <Label htmlFor="approver-role">Approver Role ID</Label>
+                    <Input id="approver-role" value={selectedStep.approverRoleId} onChange={(e) => updateStep(selectedStep.id, { approverRoleId: e.target.value })} />
+                  </div>
+                )}
+                {selectedStep.approverType === "department" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="department-id">Department ID</Label>
+                    <Input id="department-id" value={selectedStep.departmentId} onChange={(e) => updateStep(selectedStep.id, { departmentId: e.target.value })} />
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="timeout">Timeout (hours)</Label>
-                  <Input id="timeout" type="number" defaultValue={24} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notification">Notification Type</Label>
-                  <Input id="notification" defaultValue="Email" />
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                  <div>
-                    <p className="font-medium">Allow Rejection</p>
-                    <p className="text-sm text-muted-foreground">Enable rejection option</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                  <div>
-                    <p className="font-medium">Require Comments</p>
-                    <p className="text-sm text-muted-foreground">Mandatory comments for approval</p>
-                  </div>
-                  <Switch />
+                  <Label htmlFor="step-order">Step Order</Label>
+                  <Input id="step-order" type="number" value={selectedStep.stepOrder} onChange={(e) => updateStep(selectedStep.id, { stepOrder: Number(e.target.value) })} />
                 </div>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">Select a step to configure it.</p>
             )}
-          </Card>
-
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4">Workflow Settings</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <div>
-                  <p className="font-medium">Auto-approve</p>
-                  <p className="text-sm text-muted-foreground">Auto-approve after timeout</p>
-                </div>
-                <Switch />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <div>
-                  <p className="font-medium">Parallel Approval</p>
-                  <p className="text-sm text-muted-foreground">Allow parallel approvals</p>
-                </div>
-                <Switch />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <div>
-                  <p className="font-medium">Escalation</p>
-                  <p className="text-sm text-muted-foreground">Escalate on timeout</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </div>
           </Card>
         </div>
       </div>

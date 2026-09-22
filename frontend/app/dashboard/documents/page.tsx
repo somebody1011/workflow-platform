@@ -17,8 +17,11 @@ import {
   AlertCircle,
   Loader2,
   FileType2,
+  Send,
 } from "lucide-react"
 import { useAuth } from "@/app/auth/AuthProvider"
+import { listWorkflows } from "@/lib/api/workflows"
+import { createApprovalRequest, listApprovalRequests } from "@/lib/api/approval-requests"
 
 type Document = {
   id: string
@@ -88,6 +91,12 @@ export default function DocumentsPage() {
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [viewingDoc, setViewingDoc] = useState<Document | null>(null)
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+  const [submittingDocId, setSubmittingDocId] = useState<string | null>(null)
+  const [availableWorkflows, setAvailableWorkflows] = useState<{ id: string; name: string }[]>([])
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>("")
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [approvalStatuses, setApprovalStatuses] = useState<Record<string, { status: string; currentStep: number }>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -120,28 +129,37 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     if (!selectedOrgId) return
-
-    const fetchDocuments = async () => {
-      setLoadingDocs(true)
-      try {
-        const response = await fetch(`http://localhost:5000/api/v1/documents?organizationId=${encodeURIComponent(selectedOrgId)}`, {
-          method: "GET",
-          credentials: "include",
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          setDocuments(data)
-        }
-      } catch (error) {
-        console.error("Failed to fetch documents:", error)
-      } finally {
-        setLoadingDocs(false)
-      }
-    }
-
     fetchDocuments()
+    fetchApprovalStatuses()
   }, [selectedOrgId])
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (selectedOrgId) fetchApprovalStatuses()
+    }
+    window.addEventListener("focus", onFocus)
+    return () => window.removeEventListener("focus", onFocus)
+  }, [selectedOrgId])
+
+  const fetchDocuments = async () => {
+    if (!selectedOrgId) return
+    setLoadingDocs(true)
+    try {
+      const response = await fetch(`http://localhost:5000/api/v1/documents?organizationId=${encodeURIComponent(selectedOrgId)}`, {
+        method: "GET",
+        credentials: "include",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setDocuments(data)
+      }
+    } catch (error) {
+      console.error("Failed to fetch documents:", error)
+    } finally {
+      setLoadingDocs(false)
+    }
+  }
 
   const refreshOrganizations = async () => {
     try {
@@ -249,6 +267,62 @@ export default function DocumentsPage() {
       }
     } catch (error) {
       console.error("Failed to refresh documents:", error)
+    }
+  }
+
+  const fetchApprovalStatuses = async () => {
+    if (!selectedOrgId) return
+    try {
+      const response = await fetch(`http://localhost:5000/api/v1/approval-requests?organizationId=${encodeURIComponent(selectedOrgId)}`, {
+        method: "GET",
+        credentials: "include",
+      })
+      if (response.ok) {
+        const data = await response.json()
+        const statusMap: Record<string, { status: string; currentStep: number }> = {}
+        for (const request of data) {
+          statusMap[request.documentId] = {
+            status: request.status,
+            currentStep: request.currentStep,
+          }
+        }
+        setApprovalStatuses(statusMap)
+      }
+    } catch (error) {
+      console.error("Failed to fetch approval statuses:", error)
+    }
+  }
+
+  const openSubmitModal = async (docId: string) => {
+    setSubmittingDocId(docId)
+    setSelectedWorkflowId("")
+    setSubmitError(null)
+    setAvailableWorkflows([])
+    try {
+      const workflows = await listWorkflows()
+      setAvailableWorkflows(workflows.map((w) => ({ id: w.id, name: w.name })))
+    } catch {
+      setSubmitError("Failed to load workflows")
+    }
+  }
+
+  const handleSubmitForApproval = async () => {
+    if (!submittingDocId || !selectedWorkflowId) return
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      await createApprovalRequest({
+        workflowId: selectedWorkflowId,
+        documentId: submittingDocId,
+      })
+      setSubmittingDocId(null)
+      setAvailableWorkflows([])
+      setSelectedWorkflowId("")
+      await fetchApprovalStatuses()
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to submit for approval")
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -419,7 +493,7 @@ export default function DocumentsPage() {
                     </td>
                     <td className="px-4 py-3">{user?.firstName} {user?.lastName}</td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={doc.status} />
+                      <StatusBadge status={doc.status} approvalStatus={approvalStatuses[doc.id]} />
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{formatSize(doc.size)}</td>
                     <td className="px-4 py-3 text-muted-foreground">
@@ -457,6 +531,15 @@ export default function DocumentsPage() {
                           aria-label="Delete"
                         >
                           <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-blue-600 hover:text-blue-700"
+                          onClick={() => openSubmitModal(doc.id)}
+                          aria-label="Submit for approval"
+                        >
+                          <Send className="h-4 w-4" />
                         </Button>
                       </div>
                     </td>
@@ -516,6 +599,49 @@ export default function DocumentsPage() {
                 onClick={() => deletingDocId && handleDelete(deletingDocId)}
               >
                 Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {submittingDocId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setSubmittingDocId(null)}>
+          <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold">Submit for approval</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Select a workflow to start the approval process for this document.
+            </p>
+            {submitError && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
+                {submitError}
+              </div>
+            )}
+            <div className="mt-4 space-y-2">
+              <label className="text-sm font-medium">Workflow</label>
+              <select
+                value={selectedWorkflowId}
+                onChange={(e) => setSelectedWorkflowId(e.target.value)}
+                className="h-9 w-full rounded-lg border border-border bg-transparent px-3 py-1 text-sm"
+              >
+                <option value="">Select a workflow</option>
+                {availableWorkflows.map((workflow) => (
+                  <option key={workflow.id} value={workflow.id}>
+                    {workflow.name}
+                  </option>
+                ))}
+              </select>
+              {availableWorkflows.length === 0 && !submitError && (
+                <p className="text-xs text-muted-foreground">No workflows available. Create one first.</p>
+              )}
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setSubmittingDocId(null)} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmitForApproval} disabled={submitting || !selectedWorkflowId}>
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Submit
               </Button>
             </div>
           </div>
@@ -612,16 +738,21 @@ function DocumentPreview({ doc }: { doc: Document }) {
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, approvalStatus }: { status: string; approvalStatus?: { status: string; currentStep: number } }) {
   const styles: Record<string, string> = {
     active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-    pending: "bg-yellow-100 text-yellow-700 dark:bg-green-900/30 dark:text-yellow-400",
+    pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
     archived: "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400",
+    inprogress: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    approved: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    rejected: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   }
 
+  const displayStatus = approvalStatus ? approvalStatus.status : status
+
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] || "bg-muted text-muted-foreground"}`}>
-      {status}
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles[displayStatus] || "bg-muted text-muted-foreground"}`}>
+      {displayStatus}
     </span>
   )
 }
