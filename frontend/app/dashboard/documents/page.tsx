@@ -743,12 +743,17 @@ function StatusBadge({ status, approvalStatus }: { status: string; approvalStatu
     active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
     pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
     archived: "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400",
+    in_progress: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
     inprogress: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
     approved: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
     rejected: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   }
 
-  const displayStatus = approvalStatus ? approvalStatus.status : status
+  const displayStatus = approvalStatus
+    ? approvalStatus.status === "pending"
+      ? "in_progress"
+      : approvalStatus.status
+    : status
 
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles[displayStatus] || "bg-muted text-muted-foreground"}`}>
