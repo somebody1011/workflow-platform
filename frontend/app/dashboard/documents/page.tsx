@@ -20,6 +20,7 @@ import {
   Send,
 } from "lucide-react"
 import { useAuth } from "@/app/auth/AuthProvider"
+import { API_BASE } from "@/lib/api/config"
 import { listWorkflows } from "@/lib/api/workflows"
 import { createApprovalRequest, listApprovalRequests } from "@/lib/api/approval-requests"
 
@@ -72,7 +73,7 @@ function canPreviewDocument(mimeType: string) {
 function getDocumentUrl(doc: Document) {
   if (!doc.url) return null
   if (doc.url.includes("supabase.co")) {
-    return `http://localhost:5000/api/v1/documents/${doc.id}/download`
+    return `${API_BASE}/api/v1/documents/${doc.id}/download`
   }
   return doc.url
 }
@@ -102,7 +103,7 @@ export default function DocumentsPage() {
   useEffect(() => {
     const fetchOrganizations = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/v1/organizations", {
+        const response = await fetch(`${API_BASE}/api/v1/organizations`, {
           method: "GET",
           credentials: "include",
         })
@@ -145,7 +146,7 @@ export default function DocumentsPage() {
     if (!selectedOrgId) return
     setLoadingDocs(true)
     try {
-      const response = await fetch(`http://localhost:5000/api/v1/documents?organizationId=${encodeURIComponent(selectedOrgId)}`, {
+      const response = await fetch(`${API_BASE}/api/v1/documents?organizationId=${encodeURIComponent(selectedOrgId)}`, {
         method: "GET",
         credentials: "include",
       })
@@ -163,7 +164,7 @@ export default function DocumentsPage() {
 
   const refreshOrganizations = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/v1/organizations", {
+      const response = await fetch(`${API_BASE}/api/v1/organizations`, {
         method: "GET",
         credentials: "include",
       })
@@ -211,7 +212,7 @@ export default function DocumentsPage() {
         formData.append("organizationId", selectedOrgId)
       }
 
-      const response = await fetch("http://localhost:5000/api/v1/documents/upload", {
+      const response = await fetch(`${API_BASE}/api/v1/documents/upload`, {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -236,7 +237,7 @@ export default function DocumentsPage() {
 
   const handleDelete = async (docId: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/v1/documents/${docId}`, {
+      const response = await fetch(`${API_BASE}/api/v1/documents/${docId}`, {
         method: "DELETE",
         credentials: "include",
       })
@@ -257,7 +258,7 @@ export default function DocumentsPage() {
   const refreshDocuments = async () => {
     if (!selectedOrgId) return
     try {
-      const response = await fetch(`http://localhost:5000/api/v1/documents?organizationId=${encodeURIComponent(selectedOrgId)}`, {
+      const response = await fetch(`${API_BASE}/api/v1/documents?organizationId=${encodeURIComponent(selectedOrgId)}`, {
         method: "GET",
         credentials: "include",
       })
@@ -273,7 +274,7 @@ export default function DocumentsPage() {
   const fetchApprovalStatuses = async () => {
     if (!selectedOrgId) return
     try {
-      const response = await fetch(`http://localhost:5000/api/v1/approval-requests?organizationId=${encodeURIComponent(selectedOrgId)}`, {
+      const response = await fetch(`${API_BASE}/api/v1/approval-requests?organizationId=${encodeURIComponent(selectedOrgId)}`, {
         method: "GET",
         credentials: "include",
       })
@@ -517,7 +518,7 @@ export default function DocumentsPage() {
                           className="h-8 w-8"
                           aria-label="Download"
                           onClick={() => {
-                            window.location.href = `http://localhost:5000/api/v1/documents/${doc.id}/download`
+                             window.location.href = `${API_BASE}/api/v1/documents/${doc.id}/download`
                           }}
                           disabled={!doc.url}
                         >

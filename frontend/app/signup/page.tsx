@@ -2,7 +2,9 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import * as z from "zod"
+import { API_BASE } from "@/lib/api/config"
 
 const formSchema = z.object({
   firstName: z.string().min(2, { message: "First name must be at least 2 characters" }).max(100),
@@ -44,6 +46,7 @@ export default function SigninPage() {
   const [orgError, setOrgError] = useState("")
   const [joinCode, setJoinCode] = useState("")
   const [joinError, setJoinError] = useState("")
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -62,7 +65,7 @@ export default function SigninPage() {
 
     setSubmitting(true)
     try {
-      const response = await fetch("http://localhost:5000/api/v1/users", {
+      const response = await fetch(`${API_BASE}/api/v1/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -96,7 +99,7 @@ export default function SigninPage() {
 
     setSubmitting(true)
     try {
-      const response = await fetch("http://localhost:5000/api/v1/organizations", {
+      const response = await fetch(`${API_BASE}/api/v1/organizations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: orgName.trim(), type: "organization" }),
@@ -109,7 +112,7 @@ export default function SigninPage() {
         return
       }
 
-      window.location.href = "/dashboard"
+      router.replace("/dashboard")
     } catch {
       setOrgError("Unable to reach the server. Please try again.")
     } finally {
@@ -125,7 +128,7 @@ export default function SigninPage() {
 
     setSubmitting(true)
     try {
-      const response = await fetch("http://localhost:5000/api/v1/organizations/join", {
+      const response = await fetch(`${API_BASE}/api/v1/organizations/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ organizationId: joinCode.trim() }),
@@ -138,7 +141,7 @@ export default function SigninPage() {
         return
       }
 
-      window.location.href = "/dashboard"
+      router.replace("/dashboard")
     } catch {
       setJoinError("Unable to reach the server. Please try again.")
     } finally {
@@ -147,7 +150,7 @@ export default function SigninPage() {
   }
 
   const handlePersonal = () => {
-    window.location.href = "/dashboard"
+    router.replace("/dashboard")
   }
 
   if (step === "onboarding") {
@@ -239,7 +242,7 @@ export default function SigninPage() {
           <h1 className="text-2xl font-bold">Sign up</h1>
           <p className="text-sm text-muted-foreground">Create an account to get started</p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" method="post" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

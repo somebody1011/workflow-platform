@@ -2,8 +2,10 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import * as z from "zod"
 import { useAuth } from "@/app/auth/AuthProvider"
+import { API_BASE } from "@/lib/api/config"
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email" }),
@@ -26,35 +28,36 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<FieldErrors>({})
   const [submitting, setSubmitting] = useState(false)
   const { login } = useAuth()
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const result = formSchema.safeParse(form)
-    if (!result.success) {
-      const fieldErrors: FieldErrors = {}
-      for (const issue of result.error.issues) {
-        const path = issue.path[0] as keyof FieldErrors | undefined
-        if (path && !fieldErrors[path]) {
-          fieldErrors[path] = issue.message
-        }
-      }
-      setErrors(fieldErrors)
+    e.stopPropagation()
+
+    const trimmedEmail = (form.email || "").trim()
+    const password = form.password || ""
+
+    if (!trimmedEmail || !password) {
+      setErrors({
+        email: trimmedEmail ? undefined : "Email is required",
+        password: password ? undefined : "Password is required",
+      })
       return
     }
 
     setSubmitting(true)
+    setErrors({})
+
     try {
-      const response = await fetch("http://localhost:5000/api/v1/users/login", {
+      const response = await fetch(`${API_BASE}/api/v1/users/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: form.email.trim(),
-          password: form.password,
-        }),
+        body: JSON.stringify({ email: trimmedEmail, password }),
         credentials: "include",
       })
 
-      const data = await response.json()
+      const data = await response.json().catch(() => ({ error: "Invalid response from server" }))
+
       if (!response.ok) {
         setErrors({ form: data.error || "Something went wrong" })
         return
@@ -67,7 +70,7 @@ export default function LoginPage() {
         email: data.email,
       })
 
-      window.location.href = "/dashboard"
+      router.push("/dashboard")
     } catch {
       setErrors({ form: "Unable to reach the server. Please try again." })
     } finally {
@@ -83,7 +86,7 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold">Welcome back</h1>
           <p className="text-sm text-muted-foreground">Sign in to your account to continue</p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" method="post" onSubmit={handleSubmit} noValidate>
           <div className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">Email</label>

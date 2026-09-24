@@ -72,7 +72,8 @@ const SelectContent = ({ children }: { children: React.ReactNode }) => {
     <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md">
       {React.Children.map(children, (child) => {
         if (React.isValidElement(child) && child.type === SelectItem) {
-          const itemValue = (child.props as { value: string }).value
+          const item = child as React.ReactElement<SelectItemProps>
+          const itemValue = item.props.value
           return (
             <div
               role="option"
@@ -83,7 +84,7 @@ const SelectContent = ({ children }: { children: React.ReactNode }) => {
               )}
               onClick={() => handleSelect(itemValue)}
             >
-              {child.props.children}
+              {item.props.children}
             </div>
           )
         }

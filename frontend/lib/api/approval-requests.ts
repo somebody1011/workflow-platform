@@ -2,7 +2,7 @@ import type { ApprovalRequest, CreateApprovalRequestPayload, SubmitApprovalActio
 
 export type { ApprovalRequest }
 
-const API_BASE = "http://localhost:5000"
+import { API_BASE } from "./config"
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
