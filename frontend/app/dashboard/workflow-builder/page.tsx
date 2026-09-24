@@ -85,7 +85,7 @@ export default function WorkflowBuilderPage() {
         setDepartments(departmentsData)
         setUsers(membersData.map((m) => ({ id: m.userId, name: m.name, email: m.email })))
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingLookups(false))
   }, [organizations, editId])
 
@@ -98,9 +98,9 @@ export default function WorkflowBuilderPage() {
         setName(workflow.name)
         setDocumentType(workflow.documentType)
         setActive(workflow.status === "active")
-          const memberLookup = await listOrganizationMembers(workflow.organizationId)
-          const memberById = new Map(memberLookup.map((member) => [member.userId, member]))
-          setSteps(
+        const memberLookup = await listOrganizationMembers(workflow.organizationId)
+        const memberById = new Map(memberLookup.map((member) => [member.userId, member]))
+        setSteps(
           workflow.steps.map((step) => ({
             id: step.id,
             name: "",
@@ -238,9 +238,8 @@ export default function WorkflowBuilderPage() {
                 {steps.map((step, index) => (
                   <div key={step.id} className="flex flex-col items-center gap-2 w-full">
                     <div
-                      className={`flex w-full max-w-md items-center gap-3 rounded-lg border-2 p-4 cursor-pointer transition-colors ${
-                        selectedStepId === step.id ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"
-                      }`}
+                      className={`flex w-full max-w-md items-center gap-3 rounded-lg border-2 p-4 cursor-pointer transition-colors ${selectedStepId === step.id ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"
+                        }`}
                       onClick={() => setSelectedStepId(step.id)}
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">

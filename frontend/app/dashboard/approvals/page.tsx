@@ -253,9 +253,8 @@ export default function ApprovalsPage() {
                       <div key={step.id} className="flex gap-4">
                         <div className="flex flex-col items-center">
                           <div
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 ${
-                              isRejected ? "border-red-500 bg-red-50 text-red-600 dark:bg-red-950/30" : isCompleted ? "border-green-500 bg-green-50 text-green-600 dark:bg-green-950/30" : isCurrentStep ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted text-muted-foreground"
-                            }`}
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 ${isRejected ? "border-red-500 bg-red-50 text-red-600 dark:bg-red-950/30" : isCompleted ? "border-green-500 bg-green-50 text-green-600 dark:bg-green-950/30" : isCurrentStep ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted text-muted-foreground"
+                              }`}
                           >
                             {isCompleted ? <Check className="h-5 w-5" /> : isRejected ? <X className="h-5 w-5" /> : <span className="text-xs font-medium">{step.stepOrder}</span>}
                           </div>
@@ -271,12 +270,12 @@ export default function ApprovalsPage() {
                                 {approvedAction
                                   ? `Approved by ${approvedAction.actor ? `${approvedAction.actor.firstName} ${approvedAction.actor.lastName}` : "Unknown"}`
                                   : rejectedAction
-                                  ? `Rejected by ${rejectedAction.actor ? `${rejectedAction.actor.firstName} ${rejectedAction.actor.lastName}` : "Unknown"}`
-                                  : isCurrentStep
-                                  ? canAct
-                                    ? "Waiting for your approval"
-                                    : "Waiting for approval"
-                                  : "Not started"}
+                                    ? `Rejected by ${rejectedAction.actor ? `${rejectedAction.actor.firstName} ${rejectedAction.actor.lastName}` : "Unknown"}`
+                                    : isCurrentStep
+                                      ? canAct
+                                        ? "Waiting for your approval"
+                                        : "Waiting for approval"
+                                      : "Not started"}
                               </p>
                             </div>
                             {approvedAction?.createdAt && (
