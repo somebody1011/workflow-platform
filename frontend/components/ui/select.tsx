@@ -11,9 +11,9 @@ interface SelectContextValue {
 
 const SelectContext = React.createContext<SelectContextValue>({
   value: "",
-  onValueChange: () => {},
+  onValueChange: () => { },
   open: false,
-  setOpen: () => {},
+  setOpen: () => { },
 })
 
 interface SelectProps {
@@ -27,7 +27,7 @@ const Select = ({ value, onValueChange, children, className }: SelectProps) => {
   const [open, setOpen] = React.useState(false)
 
   return (
-    <SelectContext.Provider value={{ value: value || "", onValueChange: onValueChange || (() => {}), open, setOpen }}>
+    <SelectContext.Provider value={{ value: value || "", onValueChange: onValueChange || (() => { }), open, setOpen }}>
       <div className={cn("relative", className)}>{children}</div>
     </SelectContext.Provider>
   )
@@ -36,7 +36,7 @@ const Select = ({ value, onValueChange, children, className }: SelectProps) => {
 const SelectTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
   ({ className, children, ...props }, ref) => {
     const { value, setOpen } = React.useContext(SelectContext)
-    
+
     return (
       <button
         ref={ref}
@@ -60,7 +60,7 @@ SelectTrigger.displayName = "SelectTrigger"
 
 const SelectContent = ({ children }: { children: React.ReactNode }) => {
   const { open, setOpen, onValueChange, value } = React.useContext(SelectContext)
-  
+
   if (!open) return null
 
   const handleSelect = (itemValue: string) => {
