@@ -7,11 +7,13 @@ export interface WorkflowStep {
   stepOrder: number
   approverType: ApproverType
   approverRoleId: string | null
+  approverUserId: string | null
   departmentId: string | null
 }
 
 export interface Workflow {
   id: string
+  organizationId: string
   name: string
   documentType: string
   status: WorkflowStatus

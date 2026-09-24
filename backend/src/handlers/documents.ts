@@ -13,6 +13,36 @@ const upload = multer({
   },
 });
 
+async function canAccessAssignedDocument(
+  userId: string,
+  membership: { roleId: string | null; departmentId: string | null },
+  documentId: string,
+  organizationId: string
+): Promise<boolean> {
+  const requests = await db.orm.public.ApprovalRequest.where({
+    documentId,
+    organizationId,
+  }).all();
+
+  for (const request of requests) {
+    if (request.status !== "pending" && request.status !== "inprogress") {
+      continue;
+    }
+
+    const step = await db.orm.public.WorkflowStep.where({
+      workflowId: request.workflowId,
+      stepOrder: request.currentStep,
+    }).first();
+
+    if (!step) continue;
+    if (step.approverType === "user" && step.approverUserId === userId) return true;
+    if (step.approverType === "role" && step.approverRoleId === membership.roleId) return true;
+    if (step.approverType === "department" && step.departmentId === membership.departmentId) return true;
+  }
+
+  return false;
+}
+
 export const uploadDocument = async (req: AuthRequest, res: Response) => {
   upload.single("file")(req, res, async (err) => {
     if (err) {
@@ -115,7 +145,7 @@ export const uploadDocument = async (req: AuthRequest, res: Response) => {
         originalName: document.originalName,
         mimeType: document.mimeType,
         size: document.size,
-        url: uploadResult.url,
+        url: `/api/v1/documents/${document.id}/download`,
         status: document.status,
         createdAt: document.createdAt,
       });
@@ -172,18 +202,36 @@ export const listDocuments = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    const membership = await db.orm.public.OrganizationMember.where({
+      userId: req.user!.id,
+      organizationId,
+    }).first();
+
+    if (!membership) {
+      return res.status(403).json({ error: "You do not have access to this organization" });
+    }
+
     const docs = await db.orm.public.Document.where({
       organizationId,
     }).orderBy((d) => d.createdAt.desc()).all();
 
+    const visibleDocs = await Promise.all(
+      docs.map(async (doc) => ({
+        doc,
+        visible:
+          doc.uploadedBy === req.user!.id ||
+          (await canAccessAssignedDocument(req.user!.id, membership, doc.id, organizationId)),
+      }))
+    );
+
     res.status(200).json(
-      docs.map((doc) => ({
+      visibleDocs.filter(({ visible }) => visible).map(({ doc }) => ({
         id: doc.id,
         name: doc.name,
         originalName: doc.originalName,
         mimeType: doc.mimeType,
         size: doc.size,
-        url: doc.url,
+        url: `/api/v1/documents/${doc.id}/download`,
         status: doc.status,
         createdAt: doc.createdAt,
       }))
@@ -212,6 +260,14 @@ export const deleteDocument = async (req: AuthRequest, res: Response) => {
     }).first();
 
     if (!membership) {
+      return res.status(403).json({ error: "You do not have access to this document" });
+    }
+
+    const canAccess =
+      doc.uploadedBy === req.user!.id ||
+      (await canAccessAssignedDocument(req.user!.id, membership, doc.id, doc.organizationId));
+
+    if (!canAccess) {
       return res.status(403).json({ error: "You do not have access to this document" });
     }
 
@@ -244,6 +300,14 @@ export const downloadDocument = async (req: AuthRequest, res: Response) => {
     }).first();
 
     if (!membership) {
+      return res.status(403).json({ error: "You do not have access to this document" });
+    }
+
+    const canAccess =
+      doc.uploadedBy === req.user!.id ||
+      (await canAccessAssignedDocument(req.user!.id, membership, doc.id, doc.organizationId));
+
+    if (!canAccess) {
       return res.status(403).json({ error: "You do not have access to this document" });
     }
 

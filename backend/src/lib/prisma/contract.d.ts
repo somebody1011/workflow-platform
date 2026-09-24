@@ -34,7 +34,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'c7312ae5d5171bdb1c4a235817349291b3b948cb52a83fb2341cba39a58cb9a0'>;
+  StorageHashBase<'1571daa9e5079ce2ba930da242e28a124ce2101eddc34f133300cabfb1476729'>;
 export type ExecutionHash =
   ExecutionHashBase<'88619cc28886978363f17c0213f5518fc074f10b3d053708f6cf69ff651fe842'>;
 export type ProfileHash =
@@ -332,6 +332,7 @@ export type FieldOutputTypes = {
       readonly stepOrder: CodecTypes['pg/int4@1']['output'];
       readonly approverType: CodecTypes['pg/text@1']['output'];
       readonly approverRoleId: CodecTypes['pg/text@1']['output'] | null;
+      readonly approverUserId: CodecTypes['pg/text@1']['output'] | null;
       readonly departmentId: CodecTypes['pg/text@1']['output'] | null;
     };
   };
@@ -428,6 +429,7 @@ export type FieldInputTypes = {
       readonly stepOrder: CodecTypes['pg/int4@1']['input'];
       readonly approverType: CodecTypes['pg/text@1']['input'];
       readonly approverRoleId: CodecTypes['pg/text@1']['input'] | null;
+      readonly approverUserId: CodecTypes['pg/text@1']['input'] | null;
       readonly departmentId: CodecTypes['pg/text@1']['input'] | null;
     };
   };
@@ -521,6 +523,7 @@ export type StorageColumnTypes = {
     readonly workflowStep: {
       readonly approverRoleId: CodecTypes['pg/text@1']['output'] | null;
       readonly approverType: CodecTypes['pg/text@1']['output'];
+      readonly approverUserId: CodecTypes['pg/text@1']['output'] | null;
       readonly departmentId: CodecTypes['pg/text@1']['output'] | null;
       readonly id: CodecTypes['pg/text@1']['output'];
       readonly stepOrder: CodecTypes['pg/int4@1']['output'];
@@ -617,6 +620,7 @@ export type StorageColumnInputTypes = {
     readonly workflowStep: {
       readonly approverRoleId: CodecTypes['pg/text@1']['input'] | null;
       readonly approverType: CodecTypes['pg/text@1']['input'];
+      readonly approverUserId: CodecTypes['pg/text@1']['input'] | null;
       readonly departmentId: CodecTypes['pg/text@1']['input'] | null;
       readonly id: CodecTypes['pg/text@1']['input'];
       readonly stepOrder: CodecTypes['pg/int4@1']['input'];
@@ -637,7 +641,9 @@ export namespace Models {
     approvalActions: public_ApprovalAction[];
     organizationMembers: public_OrganizationMember[];
     uploadedDocuments: public_Document[];
-    readonly [RelationKeys]?: 'approvalActions' | 'organizationMembers' | 'uploadedDocuments';
+    workflowSteps: public_WorkflowStep[];
+    readonly [RelationKeys]?:
+      'approvalActions' | 'organizationMembers' | 'uploadedDocuments' | 'workflowSteps';
   };
   export type public_Organization = {
     id: CodecTypes['pg/text@1']['output'];
@@ -707,11 +713,13 @@ export namespace Models {
     stepOrder: CodecTypes['pg/int4@1']['output'];
     approverType: CodecTypes['pg/text@1']['output'];
     approverRoleId: CodecTypes['pg/text@1']['output'] | null;
+    approverUserId: CodecTypes['pg/text@1']['output'] | null;
     departmentId: CodecTypes['pg/text@1']['output'] | null;
     approverRole: public_Role | null;
+    approverUser: public_User | null;
     department: public_Department | null;
     workflow: public_Workflow;
-    readonly [RelationKeys]?: 'approverRole' | 'department' | 'workflow';
+    readonly [RelationKeys]?: 'approverRole' | 'approverUser' | 'department' | 'workflow';
   };
   export type public_ApprovalRequest = {
     id: CodecTypes['pg/text@1']['output'];
@@ -1559,6 +1567,11 @@ type ContractBase = Omit<
                   readonly codecId: 'pg/text@1';
                   readonly nullable: true;
                 };
+                readonly approverUserId: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
+                };
                 readonly departmentId: {
                   readonly nativeType: 'text';
                   readonly codecId: 'pg/text@1';
@@ -1578,6 +1591,12 @@ type ContractBase = Omit<
                   readonly name: 'workflowStep_approverRoleId_idx_2e4a1309';
                   readonly prefix: 'workflowStep_approverRoleId_idx';
                   readonly columns: readonly ['approverRoleId'];
+                  readonly unique: false;
+                },
+                {
+                  readonly name: 'workflowStep_approverUserId_idx_2de7f24e';
+                  readonly prefix: 'workflowStep_approverUserId_idx';
+                  readonly columns: readonly ['approverUserId'];
                   readonly unique: false;
                 },
                 {
@@ -1609,6 +1628,18 @@ type ContractBase = Omit<
                   readonly target: {
                     readonly namespaceId: 'public' & NamespaceId;
                     readonly tableName: 'roles';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'workflowStep';
+                    readonly columns: readonly ['approverUserId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'user';
                     readonly columns: readonly ['id'];
                   };
                 },
@@ -2392,6 +2423,17 @@ type ContractBase = Omit<
                   readonly targetFields: readonly ['uploadedBy'];
                 };
               };
+              readonly workflowSteps: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'WorkflowStep';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['approverUserId'];
+                };
+              };
             };
             readonly storage: {
               readonly table: 'user';
@@ -2516,6 +2558,10 @@ type ContractBase = Omit<
                 readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
+              readonly approverUserId: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
               readonly departmentId: {
                 readonly nullable: true;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
@@ -2528,6 +2574,15 @@ type ContractBase = Omit<
                 readonly nullable: true;
                 readonly on: {
                   readonly localFields: readonly ['approverRoleId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+              readonly approverUser: {
+                readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
+                readonly cardinality: 'N:1';
+                readonly nullable: true;
+                readonly on: {
+                  readonly localFields: readonly ['approverUserId'];
                   readonly targetFields: readonly ['id'];
                 };
               };
@@ -2565,6 +2620,7 @@ type ContractBase = Omit<
                 readonly stepOrder: { readonly column: 'stepOrder' };
                 readonly approverType: { readonly column: 'approverType' };
                 readonly approverRoleId: { readonly column: 'approverRoleId' };
+                readonly approverUserId: { readonly column: 'approverUserId' };
                 readonly departmentId: { readonly column: 'departmentId' };
               };
             };

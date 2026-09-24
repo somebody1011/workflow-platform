@@ -111,9 +111,9 @@ export default function DocumentsPage() {
         if (response.ok) {
           const data = await response.json()
           setOrganizations(data)
-          const personalOrg = data.find((org: Organization) => org.type === "personal")
-          if (personalOrg) {
-            setSelectedOrgId(personalOrg.id)
+          const nonPersonalOrg = data.find((org: Organization) => org.type !== "personal")
+          if (nonPersonalOrg) {
+            setSelectedOrgId(nonPersonalOrg.id)
           } else if (data.length > 0) {
             setSelectedOrgId(data[0].id)
           }
@@ -172,9 +172,9 @@ export default function DocumentsPage() {
       if (response.ok) {
         const data = await response.json()
         setOrganizations(data)
-        const personalOrg = data.find((org: Organization) => org.type === "personal")
-        if (personalOrg) {
-          setSelectedOrgId(personalOrg.id)
+        const nonPersonalOrg = data.find((org: Organization) => org.type !== "personal")
+        if (nonPersonalOrg) {
+          setSelectedOrgId(nonPersonalOrg.id)
         } else if (data.length > 0) {
           setSelectedOrgId(data[0].id)
         }

@@ -12,6 +12,7 @@ model User {
   organizationMembers OrganizationMember[]
   uploadedDocuments    Document[] @relation("DocumentUploadedBy")
   approvalActions      ApprovalAction[]
+  workflowSteps        WorkflowStep[]
 }
 
 model Organization {
@@ -99,6 +100,8 @@ model WorkflowStep {
   approverType   String
   approverRoleId String?
   approverRole   Role?    @relation(fields: [approverRoleId], references: [id], onDelete: SetNull)
+  approverUserId String?
+  approverUser   User?    @relation(fields: [approverUserId], references: [id], onDelete: SetNull)
   departmentId   String?
   department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 

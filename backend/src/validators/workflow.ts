@@ -14,6 +14,7 @@ export interface CreateWorkflowStepInput {
   stepOrder: number;
   approverType: "user" | "role" | "department";
   approverRoleId?: string;
+  approverUserId?: string;
   departmentId?: string;
 }
 
@@ -86,6 +87,14 @@ export function validateSteps(steps: unknown): CreateWorkflowStepInput[] {
         throw new Error(`Step ${index + 1} with approverType 'department' must have departmentId`);
       }
       validatedStep.departmentId = departmentId.trim();
+    }
+
+    if (approverType === "user") {
+      const approverUserId = (step as Record<string, unknown>).approverUserId;
+      if (typeof approverUserId !== "string" || !approverUserId.trim()) {
+        throw new Error(`Step ${index + 1} with approverType 'user' must have approverUserId`);
+      }
+      validatedStep.approverUserId = approverUserId.trim();
     }
 
     validated.push(validatedStep);

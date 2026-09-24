@@ -32,6 +32,7 @@ export const listWorkflows = async (req: AuthRequest, res: Response) => {
 
         return {
           id: workflow.id,
+          organizationId: workflow.organizationId,
           name: workflow.name,
           documentType: workflow.documentType,
           status: workflow.status,
@@ -42,6 +43,7 @@ export const listWorkflows = async (req: AuthRequest, res: Response) => {
             stepOrder: step.stepOrder,
             approverType: step.approverType,
             approverRoleId: step.approverRoleId,
+            approverUserId: step.approverUserId,
             departmentId: step.departmentId,
           })),
         };
@@ -77,6 +79,7 @@ export const getWorkflow = async (req: AuthRequest, res: Response) => {
 
     res.status(200).json({
       id: workflow.id,
+      organizationId: workflow.organizationId,
       name: workflow.name,
       documentType: workflow.documentType,
       status: workflow.status,
@@ -87,6 +90,7 @@ export const getWorkflow = async (req: AuthRequest, res: Response) => {
         stepOrder: step.stepOrder,
         approverType: step.approverType,
         approverRoleId: step.approverRoleId,
+        approverUserId: step.approverUserId,
         departmentId: step.departmentId,
       })),
     });
@@ -112,11 +116,35 @@ export const createWorkflow = async (req: AuthRequest, res: Response) => {
     });
 
     for (const step of validatedSteps) {
+      let approverUserId = step.approverUserId || null;
+
+      if (step.approverType === "user" && approverUserId) {
+        const user = await db.orm.public.User.where({
+          email: approverUserId.trim(),
+        }).first();
+
+        if (!user) {
+          return res.status(400).json({ error: `User with email '${approverUserId.trim()}' not found` });
+        }
+
+        const membership = await db.orm.public.OrganizationMember.where({
+          userId: user.id,
+          organizationId,
+        }).first();
+
+        if (!membership) {
+          return res.status(400).json({ error: `User '${approverUserId.trim()}' is not a member of this organization` });
+        }
+
+        approverUserId = user.id;
+      }
+
       await db.orm.public.WorkflowStep.create({
         workflowId: workflow.id,
         stepOrder: step.stepOrder,
         approverType: step.approverType,
         approverRoleId: step.approverRoleId || null,
+        approverUserId: approverUserId,
         departmentId: step.departmentId || null,
       });
     }
@@ -129,6 +157,7 @@ export const createWorkflow = async (req: AuthRequest, res: Response) => {
 
     res.status(201).json({
       id: workflow.id,
+      organizationId: workflow.organizationId,
       name: workflow.name,
       documentType: workflow.documentType,
       status: workflow.status,
@@ -139,6 +168,7 @@ export const createWorkflow = async (req: AuthRequest, res: Response) => {
         stepOrder: step.stepOrder,
         approverType: step.approverType,
         approverRoleId: step.approverRoleId,
+        approverUserId: step.approverUserId,
         departmentId: step.departmentId,
       })),
     });
@@ -184,11 +214,35 @@ export const updateWorkflow = async (req: AuthRequest, res: Response) => {
       }
 
       for (const step of validatedSteps) {
+        let approverUserId = step.approverUserId || null;
+
+        if (step.approverType === "user" && approverUserId) {
+          const user = await db.orm.public.User.where({
+            email: approverUserId.trim(),
+          }).first();
+
+          if (!user) {
+            return res.status(400).json({ error: `User with email '${approverUserId.trim()}' not found` });
+          }
+
+          const membership = await db.orm.public.OrganizationMember.where({
+            userId: user.id,
+            organizationId,
+          }).first();
+
+          if (!membership) {
+            return res.status(400).json({ error: `User '${approverUserId.trim()}' is not a member of this organization` });
+          }
+
+          approverUserId = user.id;
+        }
+
         await db.orm.public.WorkflowStep.create({
           workflowId,
           stepOrder: step.stepOrder,
           approverType: step.approverType,
           approverRoleId: step.approverRoleId || null,
+          approverUserId: approverUserId,
           departmentId: step.departmentId || null,
         });
       }
@@ -223,6 +277,7 @@ export const updateWorkflow = async (req: AuthRequest, res: Response) => {
         stepOrder: step.stepOrder,
         approverType: step.approverType,
         approverRoleId: step.approverRoleId,
+        approverUserId: step.approverUserId,
         departmentId: step.departmentId,
       })),
     });

@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
-import { ArrowRight, User, Settings, Plus, Trash2, Loader2 } from "lucide-react"
+import { ArrowRight, User, Settings, Plus, Trash2, Loader2, Mail } from "lucide-react"
 import { createWorkflow, updateWorkflow, getWorkflow, type Workflow, type WorkflowStep } from "@/lib/api/workflows"
 import { useAuth } from "@/app/auth/AuthProvider"
+import { listRoles, listDepartments, listOrganizationMembers } from "@/lib/api/organization-members"
+import { listOrganizations } from "@/lib/api/organizations"
 
 type StepType = "start" | "approver" | "end"
 
@@ -19,6 +21,7 @@ interface BuilderStep {
   type: StepType
   approverType: "user" | "role" | "department"
   approverRoleId: string
+  approverUserId: string
   departmentId: string
   stepOrder: number
 }
@@ -28,6 +31,7 @@ const EMPTY_STEP: Omit<BuilderStep, "id"> = {
   type: "approver",
   approverType: "role",
   approverRoleId: "",
+  approverUserId: "",
   departmentId: "",
   stepOrder: 0,
 }
@@ -46,29 +50,83 @@ export default function WorkflowBuilderPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [roles, setRoles] = useState<{ id: string; name: string }[]>([])
+  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
+  const [users, setUsers] = useState<{ id: string; name: string; email: string }[]>([])
+  const [loadingLookups, setLoadingLookups] = useState(false)
+  const [organizations, setOrganizations] = useState<{ id: string; name: string; type: string }[]>([])
 
   const selectedStep = steps.find((s) => s.id === selectedStepId) ?? null
+
+  useEffect(() => {
+    const fetchOrganizations = async () => {
+      try {
+        const data = await listOrganizations()
+        setOrganizations(data)
+      } catch {
+        // ignore
+      }
+    }
+    fetchOrganizations()
+  }, [])
+
+  useEffect(() => {
+    if (editId) return
+    const org = organizations.find((o) => o.type !== "personal") || organizations[0]
+    if (!org) return
+    setLoadingLookups(true)
+    Promise.all([
+      listRoles(org.id),
+      listDepartments(org.id),
+      listOrganizationMembers(org.id),
+    ])
+      .then(([rolesData, departmentsData, membersData]) => {
+        setRoles(rolesData)
+        setDepartments(departmentsData)
+        setUsers(membersData.map((m) => ({ id: m.userId, name: m.name, email: m.email })))
+      })
+      .catch(() => {})
+      .finally(() => setLoadingLookups(false))
+  }, [organizations, editId])
 
   useEffect(() => {
     if (!editId) return
     setLoading(true)
     setError(null)
     getWorkflow(editId)
-      .then((workflow) => {
+      .then(async (workflow) => {
         setName(workflow.name)
         setDocumentType(workflow.documentType)
         setActive(workflow.status === "active")
-        setSteps(
+          const memberLookup = await listOrganizationMembers(workflow.organizationId)
+          const memberById = new Map(memberLookup.map((member) => [member.userId, member]))
+          setSteps(
           workflow.steps.map((step) => ({
             id: step.id,
             name: "",
             type: "approver" as StepType,
             approverType: step.approverType,
             approverRoleId: step.approverRoleId ?? "",
+            approverUserId: step.approverUserId ? memberById.get(step.approverUserId)?.email ?? step.approverUserId : "",
             departmentId: step.departmentId ?? "",
             stepOrder: step.stepOrder,
           }))
         )
+        setLoadingLookups(true)
+        try {
+          const [rolesData, departmentsData, membersData] = await Promise.all([
+            listRoles(workflow.organizationId),
+            listDepartments(workflow.organizationId),
+            Promise.resolve(memberLookup),
+          ])
+          setRoles(rolesData)
+          setDepartments(departmentsData)
+          setUsers(membersData.map((m) => ({ id: m.userId, name: m.name, email: m.email })))
+        } catch {
+          // ignore lookup errors
+        } finally {
+          setLoadingLookups(false)
+        }
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load workflow"))
       .finally(() => setLoading(false))
@@ -229,7 +287,7 @@ export default function WorkflowBuilderPage() {
                   <Input id="step-name" value={selectedStep.name} onChange={(e) => updateStep(selectedStep.id, { name: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="approver-type">Approver Type</Label>
+                  <Label htmlFor="approver-type">Approver type</Label>
                   <select
                     id="approver-type"
                     value={selectedStep.approverType}
@@ -238,19 +296,56 @@ export default function WorkflowBuilderPage() {
                   >
                     <option value="role">Role</option>
                     <option value="department">Department</option>
-                    <option value="user">User</option>
+                    <option value="user">Specific user</option>
                   </select>
                 </div>
                 {selectedStep.approverType === "role" && (
                   <div className="space-y-2">
-                    <Label htmlFor="approver-role">Approver Role ID</Label>
-                    <Input id="approver-role" value={selectedStep.approverRoleId} onChange={(e) => updateStep(selectedStep.id, { approverRoleId: e.target.value })} />
+                    <Label htmlFor="approver-role">Role</Label>
+                    <select
+                      id="approver-role"
+                      value={selectedStep.approverRoleId}
+                      onChange={(e) => updateStep(selectedStep.id, { approverRoleId: e.target.value })}
+                      className="h-9 w-full rounded-lg border border-border bg-transparent px-3 py-1 text-sm"
+                    >
+                      <option value="">Select a role</option>
+                      {roles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
                 {selectedStep.approverType === "department" && (
                   <div className="space-y-2">
-                    <Label htmlFor="department-id">Department ID</Label>
-                    <Input id="department-id" value={selectedStep.departmentId} onChange={(e) => updateStep(selectedStep.id, { departmentId: e.target.value })} />
+                    <Label htmlFor="department-id">Department</Label>
+                    <select
+                      id="department-id"
+                      value={selectedStep.departmentId}
+                      onChange={(e) => updateStep(selectedStep.id, { departmentId: e.target.value })}
+                      className="h-9 w-full rounded-lg border border-border bg-transparent px-3 py-1 text-sm"
+                    >
+                      <option value="">Select a department</option>
+                      {departments.map((department) => (
+                        <option key={department.id} value={department.id}>
+                          {department.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {selectedStep.approverType === "user" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="approver-user-email">User Email</Label>
+                    <Input
+                      id="approver-user-email"
+                      type="email"
+                      placeholder="user@example.com"
+                      value={selectedStep.approverUserId}
+                      onChange={(e) => updateStep(selectedStep.id, { approverUserId: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">Enter the email of the specific user in this organization.</p>
                   </div>
                 )}
                 <div className="space-y-2">

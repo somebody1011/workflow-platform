@@ -52,6 +52,17 @@ export const submitApprovalAction = async (req: AuthRequest, res: Response) => {
       .all();
 
     const currentStepNumber = stepNumber ?? approvalRequest.currentStep;
+    const currentStep = workflowSteps.find((s) => s.stepOrder === currentStepNumber);
+
+    if (!currentStep) {
+      return res.status(400).json({ error: "Invalid approval step" });
+    }
+
+    const authorized = await isAuthorizedApprover(userId, membership.organizationId, currentStep);
+
+    if (!authorized) {
+      return res.status(403).json({ error: "You are not authorized to act on this approval step" });
+    }
 
     const existingAction = await db.orm.public.ApprovalAction.where({
       approvalRequestId: requestId,
@@ -81,11 +92,12 @@ export const submitApprovalAction = async (req: AuthRequest, res: Response) => {
 
     if (action === "reject") {
       newStatus = "rejected";
-    } else if (currentStepActions.length >= workflowSteps.length) {
+    } else if (currentStepNumber >= Math.max(...workflowSteps.map((step) => step.stepOrder))) {
       newStatus = "approved";
     } else {
       newStatus = "inprogress";
-      newCurrentStep = currentStepNumber + 1;
+      const nextStep = workflowSteps.find((step) => step.stepOrder > currentStepNumber);
+      newCurrentStep = nextStep?.stepOrder ?? currentStepNumber;
     }
 
     await db.orm.public.ApprovalRequest.where({
@@ -119,6 +131,36 @@ export const submitApprovalAction = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: error?.message || "Failed to submit approval action" });
   }
 };
+
+async function isAuthorizedApprover(userId: string, organizationId: string, step: {
+  approverType: string;
+  approverRoleId: string | null;
+  approverUserId: string | null;
+  departmentId: string | null;
+}): Promise<boolean> {
+  if (step.approverType === "user") {
+    return step.approverUserId === userId;
+  }
+
+  const membership = await db.orm.public.OrganizationMember.where({
+    userId,
+    organizationId,
+  }).first();
+
+  if (!membership) {
+    return false;
+  }
+
+  if (step.approverType === "role") {
+    return membership.roleId === step.approverRoleId;
+  }
+
+  if (step.approverType === "department") {
+    return membership.departmentId === step.departmentId;
+  }
+
+  return false;
+}
 
 export const listApprovalActions = async (req: AuthRequest, res: Response) => {
   try {

@@ -30,6 +30,8 @@ export const listOrganizationMembers = async (req: AuthRequest, res: Response) =
     const team = members.map((member) => ({
       id: member.id,
       userId: member.userId,
+      roleId: member.roleId,
+      departmentId: member.departmentId,
       name: `${member.user.firstName} ${member.user.lastName}`,
       email: member.user.email,
       role: member.role?.name || "No Role",
@@ -107,8 +109,8 @@ export const inviteMember = async (req: AuthRequest, res: Response) => {
     const roleId = req.body.roleId as string | undefined
     const departmentId = req.body.departmentId as string | undefined
 
-    if (!organizationId || !email) {
-      return res.status(400).json({ error: "organizationId and email are required" })
+    if (!organizationId || !email || !roleId || !departmentId) {
+      return res.status(400).json({ error: "organizationId, email, role, and department are required" })
     }
 
     const membership = await db.orm.public.OrganizationMember.where({
@@ -126,6 +128,20 @@ export const inviteMember = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "No user found with this email. Ask them to sign up first." })
     }
 
+    if (roleId) {
+      const role = await db.orm.public.Role.where({ id: roleId, organizationId }).first()
+      if (!role) {
+        return res.status(400).json({ error: "Selected role does not belong to this organization" })
+      }
+    }
+
+    if (departmentId) {
+      const department = await db.orm.public.Department.where({ id: departmentId, organizationId }).first()
+      if (!department) {
+        return res.status(400).json({ error: "Selected department does not belong to this organization" })
+      }
+    }
+
     const existingMember = await db.orm.public.OrganizationMember.where({
       userId: user.id,
       organizationId,
@@ -138,8 +154,8 @@ export const inviteMember = async (req: AuthRequest, res: Response) => {
     const member = await db.orm.public.OrganizationMember.create({
       userId: user.id,
       organizationId,
-      roleId: roleId || null,
-      departmentId: departmentId || null,
+      roleId,
+      departmentId,
       status: "active",
     })
 

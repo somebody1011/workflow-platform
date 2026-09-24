@@ -1,6 +1,6 @@
 import type { WorkflowStep } from "./workflow"
 
-export type ApprovalRequestStatus = "pending" | "approved" | "rejected"
+export type ApprovalRequestStatus = "pending" | "inprogress" | "approved" | "rejected"
 
 export interface WorkflowSummary {
   id: string

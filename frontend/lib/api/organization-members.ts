@@ -1,6 +1,8 @@
 export type OrganizationMember = {
   id: string
   userId: string
+  roleId?: string | null
+  departmentId?: string | null
   name: string
   email: string
   role: string

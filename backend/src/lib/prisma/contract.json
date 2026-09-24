@@ -1139,6 +1139,21 @@
                   "model": "Document",
                   "namespace": "public"
                 }
+              },
+              "workflowSteps": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "approverUserId"
+                  ]
+                },
+                "to": {
+                  "model": "WorkflowStep",
+                  "namespace": "public"
+                }
               }
             },
             "storage": {
@@ -1313,6 +1328,13 @@
                   "kind": "scalar"
                 }
               },
+              "approverUserId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "departmentId": {
                 "nullable": true,
                 "type": {
@@ -1359,6 +1381,22 @@
                   "namespace": "public"
                 }
               },
+              "approverUser": {
+                "cardinality": "N:1",
+                "nullable": true,
+                "on": {
+                  "localFields": [
+                    "approverUserId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "User",
+                  "namespace": "public"
+                }
+              },
               "department": {
                 "cardinality": "N:1",
                 "nullable": true,
@@ -1399,6 +1437,9 @@
                 },
                 "approverType": {
                   "column": "approverType"
+                },
+                "approverUserId": {
+                  "column": "approverUserId"
                 },
                 "departmentId": {
                   "column": "departmentId"
@@ -2391,6 +2432,11 @@
                   "nativeType": "text",
                   "nullable": false
                 },
+                "approverUserId": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
                 "departmentId": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
@@ -2451,6 +2497,23 @@
                   "onDelete": "setNull",
                   "source": {
                     "columns": [
+                      "approverUserId"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "workflowStep"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "user"
+                  }
+                },
+                {
+                  "onDelete": "setNull",
+                  "source": {
+                    "columns": [
                       "departmentId"
                     ],
                     "namespaceId": "public",
@@ -2472,6 +2535,14 @@
                   ],
                   "name": "workflowStep_approverRoleId_idx_2e4a1309",
                   "prefix": "workflowStep_approverRoleId_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "approverUserId"
+                  ],
+                  "name": "workflowStep_approverUserId_idx_2de7f24e",
+                  "prefix": "workflowStep_approverUserId_idx",
                   "unique": false
                 },
                 {
@@ -2504,7 +2575,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "c7312ae5d5171bdb1c4a235817349291b3b948cb52a83fb2341cba39a58cb9a0"
+    "storageHash": "1571daa9e5079ce2ba930da242e28a124ce2101eddc34f133300cabfb1476729"
   },
   "execution": {
     "executionHash": "88619cc28886978363f17c0213f5518fc074f10b3d053708f6cf69ff651fe842",

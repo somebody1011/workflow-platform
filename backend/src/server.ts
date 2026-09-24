@@ -16,6 +16,9 @@ import { uploadToCloudinary } from "./lib/cloudinary";
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// ngrok forwards the client's address in X-Forwarded-For.
+app.set("trust proxy", 1);
+
 const allowedOrigins = new Set([
   "http://localhost:3000",
   "http://localhost:3001",

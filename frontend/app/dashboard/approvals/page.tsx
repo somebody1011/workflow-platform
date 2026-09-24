@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/card"
 import { Search, Filter, Check, X, MoreHorizontal, Loader2, ChevronRight } from "lucide-react"
 import { listApprovalRequests, getApprovalRequest, submitApprovalAction, listApprovalActions, type ApprovalRequest } from "@/lib/api/approval-requests"
 import { useAuth } from "@/app/auth/AuthProvider"
+import type { WorkflowStep } from "@/types/workflow"
+import { listRoles, listDepartments, listOrganizationMembers, type OrganizationMember } from "@/lib/api/organization-members"
 
 const STATUS_STYLES: Record<string, string> = {
   approved: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
@@ -29,6 +31,10 @@ export default function ApprovalsPage() {
   const [actingId, setActingId] = useState<string | null>(null)
   const [comment, setComment] = useState("")
   const [actions, setActions] = useState<ApprovalRequest["actions"]>([])
+  const [actingError, setActingError] = useState<string | null>(null)
+  const [roles, setRoles] = useState<{ id: string; name: string }[]>([])
+  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
+  const [members, setMembers] = useState<OrganizationMember[]>([])
 
   const fetchApprovals = async () => {
     setLoading(true)
@@ -51,6 +57,9 @@ export default function ApprovalsPage() {
     if (!selectedId) {
       setSelectedApproval(null)
       setActions([])
+      setRoles([])
+      setDepartments([])
+      setMembers([])
       return
     }
 
@@ -64,6 +73,16 @@ export default function ApprovalsPage() {
         ])
         setSelectedApproval(detail)
         setActions(actionHistory)
+        if (detail?.organizationId) {
+          const [rolesData, departmentsData, membersData] = await Promise.all([
+            listRoles(detail.organizationId),
+            listDepartments(detail.organizationId),
+            listOrganizationMembers(detail.organizationId),
+          ])
+          setRoles(rolesData)
+          setDepartments(departmentsData)
+          setMembers(membersData)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch approval detail")
       } finally {
@@ -76,6 +95,7 @@ export default function ApprovalsPage() {
 
   const handleAction = async (id: string, action: "approve" | "reject") => {
     setActingId(id)
+    setActingError(null)
     try {
       await submitApprovalAction(id, { action, comment: comment || undefined })
       setComment("")
@@ -83,7 +103,7 @@ export default function ApprovalsPage() {
       const updated = await getApprovalRequest(id)
       setSelectedApproval(updated)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit action")
+      setActingError(err instanceof Error ? err.message : "Failed to submit action")
     } finally {
       setActingId(null)
     }
@@ -98,9 +118,47 @@ export default function ApprovalsPage() {
     return matchesSearch && matchesStatus
   })
 
+  const isAuthorizedForStep = (step: WorkflowStep | undefined): boolean => {
+    if (!step || !user) return false
+    if (step.approverType === "user") {
+      return step.approverUserId === user.id
+    }
+    const member = members.find((candidate) => candidate.userId === user.id && candidate.status === "Active")
+    if (!member) return false
+    if (step.approverType === "role") return member.roleId === step.approverRoleId
+    if (step.approverType === "department") return member.departmentId === step.departmentId
+    return false
+  }
+
+  const getApproverLabel = (step: WorkflowStep | undefined): string => {
+    if (!step) return "Unknown"
+    if (step.approverType === "user") {
+      if (step.approverUserId === user?.id) return "You"
+      return "Specific user"
+    }
+    if (step.approverType === "role") {
+      const role = roles.find((r) => r.id === step.approverRoleId)
+      return role ? `Role: ${role.name}` : `Role: ${step.approverRoleId ?? "unknown"}`
+    }
+    if (step.approverType === "department") {
+      const dept = departments.find((d) => d.id === step.departmentId)
+      return dept ? `Department: ${dept.name}` : `Department: ${step.departmentId ?? "unknown"}`
+    }
+    return "Unknown"
+  }
+
   const totalSteps = selectedApproval?.workflow?.steps?.length ?? 0
   const completedActions = actions.filter((a) => a.action === "approve").length
   const progress = totalSteps > 0 ? Math.round((completedActions / totalSteps) * 100) : 0
+
+  const currentStep = selectedApproval?.workflow?.steps?.find((s) => s.stepOrder === selectedApproval.currentStep)
+  const canAct =
+    !!selectedApproval &&
+    !!currentStep &&
+    (selectedApproval.status === "pending" || selectedApproval.status === "inprogress") &&
+    !actions.some((a) => a.stepNumber === currentStep.stepOrder && a.action === "approve") &&
+    !actions.some((a) => a.stepNumber === currentStep.stepOrder && a.action === "reject") &&
+    isAuthorizedForStep(currentStep)
 
   return (
     <div className="space-y-6">
@@ -113,6 +171,7 @@ export default function ApprovalsPage() {
         <Card className="p-4">
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
             {error}
+            <button onClick={() => setError(null)} className="ml-auto font-medium">Dismiss</button>
           </div>
         </Card>
       )}
@@ -173,7 +232,7 @@ export default function ApprovalsPage() {
 
           <Card className="p-6 lg:col-span-2">
             <h3 className="font-semibold mb-4">Approval Progress</h3>
-            {detailLoading ? (
+            {!selectedApproval ? null : detailLoading ? (
               <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 Loading...
@@ -185,9 +244,10 @@ export default function ApprovalsPage() {
                     const stepActions = actions.filter((a) => a.stepNumber === step.stepOrder)
                     const approvedAction = stepActions.find((a) => a.action === "approve")
                     const rejectedAction = stepActions.find((a) => a.action === "reject")
-                    const isCurrentStep = selectedApproval.currentStep === step.stepOrder && selectedApproval.status === "pending"
+                    const isCurrentStep = selectedApproval.currentStep === step.stepOrder && (selectedApproval.status === "pending" || selectedApproval.status === "inprogress")
                     const isCompleted = !!approvedAction
                     const isRejected = !!rejectedAction
+                    const canAct = isCurrentStep && !isCompleted && !isRejected && isAuthorizedForStep(step)
 
                     return (
                       <div key={step.id} className="flex gap-4">
@@ -200,20 +260,22 @@ export default function ApprovalsPage() {
                             {isCompleted ? <Check className="h-5 w-5" /> : isRejected ? <X className="h-5 w-5" /> : <span className="text-xs font-medium">{step.stepOrder}</span>}
                           </div>
                           {index < (selectedApproval.workflow?.steps?.length ?? 0) - 1 && (
-                            <div className={`h-12 w-0.5 ${isCompleted ? "bg-green-500" : "bg-border"}`} />
+                            <div className={`h-12 w-0.5 ${isCompleted ? "bg-green-500" : "border-border"}`} />
                           )}
                         </div>
                         <div className="flex-1 pb-6">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="text-sm font-medium">{step.approverType === "role" ? `Role: ${step.approverRoleId}` : step.approverType === "department" ? `Department: ${step.departmentId}` : "User"}</p>
+                              <p className="text-sm font-medium">{getApproverLabel(step)}</p>
                               <p className="text-xs text-muted-foreground">
                                 {approvedAction
                                   ? `Approved by ${approvedAction.actor ? `${approvedAction.actor.firstName} ${approvedAction.actor.lastName}` : "Unknown"}`
                                   : rejectedAction
                                   ? `Rejected by ${rejectedAction.actor ? `${rejectedAction.actor.firstName} ${rejectedAction.actor.lastName}` : "Unknown"}`
                                   : isCurrentStep
-                                  ? "Waiting for approval"
+                                  ? canAct
+                                    ? "Waiting for your approval"
+                                    : "Waiting for approval"
                                   : "Not started"}
                               </p>
                             </div>
@@ -228,7 +290,7 @@ export default function ApprovalsPage() {
                             <p className="mt-2 text-xs text-muted-foreground italic">"{approvedAction.comment}"</p>
                           )}
                           {rejectedAction?.comment && (
-                            <p className="mt-2 text-xs text-red-600 italic">"{rejectedAction.comment}"</p>
+                            <p className="mt-2 text-xs text-muted-foreground italic">"{rejectedAction.comment}"</p>
                           )}
                         </div>
                       </div>
@@ -255,7 +317,7 @@ export default function ApprovalsPage() {
                         ))}
                     </div>
                   )}
-                  {selectedApproval.status === "pending" && (
+                  {(selectedApproval.status === "pending" || selectedApproval.status === "inprogress") && (
                     <div className="space-y-2">
                       <textarea
                         placeholder="Add a comment..."
@@ -267,21 +329,27 @@ export default function ApprovalsPage() {
                   )}
                 </div>
 
-                {selectedApproval.status === "pending" && (
+                {(selectedApproval.status === "pending" || selectedApproval.status === "inprogress") && (
                   <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
                     <Button
                       variant="outline"
                       className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/30"
                       onClick={() => handleAction(selectedApproval.id, "reject")}
-                      disabled={actingId === selectedApproval.id}
+                      disabled={actingId === selectedApproval.id || !canAct}
                     >
                       {actingId === selectedApproval.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
                       Reject
                     </Button>
-                    <Button onClick={() => handleAction(selectedApproval.id, "approve")} disabled={actingId === selectedApproval.id}>
+                    <Button onClick={() => handleAction(selectedApproval.id, "approve")} disabled={actingId === selectedApproval.id || !canAct}>
                       {actingId === selectedApproval.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
                       Approve
                     </Button>
+                  </div>
+                )}
+                {actingError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
+                    {actingError}
+                    <button onClick={() => setActingError(null)} className="ml-auto font-medium">Dismiss</button>
                   </div>
                 )}
               </div>

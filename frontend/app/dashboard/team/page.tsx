@@ -55,9 +55,9 @@ export default function TeamPage() {
       try {
         const data = await listOrganizations()
         setOrganizations(data)
-        const personalOrg = data.find((org) => org.type === "personal")
-        if (personalOrg) {
-          setSelectedOrgId(personalOrg.id)
+        const nonPersonalOrg = data.find((org) => org.type !== "personal")
+        if (nonPersonalOrg) {
+          setSelectedOrgId(nonPersonalOrg.id)
         } else if (data.length > 0) {
           setSelectedOrgId(data[0].id)
         }
@@ -113,15 +113,15 @@ export default function TeamPage() {
   }
 
   const handleInvite = async () => {
-    if (!selectedOrgId || !inviteEmail.trim()) return
+    if (!selectedOrgId || !inviteEmail.trim() || !inviteRoleId || !inviteDepartmentId) return
     setInviting(true)
     setInviteError(null)
     try {
       const member = await inviteMember({
         organizationId: selectedOrgId,
         email: inviteEmail.trim(),
-        roleId: inviteRoleId || undefined,
-        departmentId: inviteDepartmentId || undefined,
+        roleId: inviteRoleId,
+        departmentId: inviteDepartmentId,
       })
       setMembers((prev) => [...prev, member])
       setInviteOpen(false)
@@ -286,7 +286,7 @@ export default function TeamPage() {
                   onChange={(e) => setInviteRoleId(e.target.value)}
                   className="mt-1 h-9 w-full rounded-lg border border-border bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <option value="">No Role</option>
+                  <option value="">Select a role</option>
                   {roles.map((role) => (
                     <option key={role.id} value={role.id}>
                       {role.name}
@@ -301,7 +301,7 @@ export default function TeamPage() {
                   onChange={(e) => setInviteDepartmentId(e.target.value)}
                   className="mt-1 h-9 w-full rounded-lg border border-border bg-transparent px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <option value="">No Department</option>
+                  <option value="">Select a department</option>
                   {departments.map((department) => (
                     <option key={department.id} value={department.id}>
                       {department.name}

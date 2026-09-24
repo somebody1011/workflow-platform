@@ -2,6 +2,26 @@ import type { Request, Response } from "express";
 import { db } from "../lib/prisma/db";
 import type { AuthRequest } from "../middleware/auth";
 
+async function canViewRequest(
+  userId: string,
+  membership: { roleId: string | null; departmentId: string | null },
+  request: { submittedBy: string; workflowId: string; currentStep: number; status: string }
+): Promise<boolean> {
+  if (request.submittedBy === userId) return true;
+  if (request.status !== "pending" && request.status !== "inprogress") return false;
+
+  const step = await db.orm.public.WorkflowStep.where({
+    workflowId: request.workflowId,
+    stepOrder: request.currentStep,
+  }).first();
+
+  if (!step) return false;
+  if (step.approverType === "user") return step.approverUserId === userId;
+  if (step.approverType === "role") return step.approverRoleId === membership.roleId;
+  if (step.approverType === "department") return step.departmentId === membership.departmentId;
+  return false;
+}
+
 export const createApprovalRequest = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -96,7 +116,7 @@ export const createApprovalRequest = async (req: AuthRequest, res: Response) => 
         id: document.id,
         name: document.name,
         originalName: document.originalName,
-        url: document.url,
+        url: `/api/v1/documents/${document.id}/download`,
       },
       submittedByUser: submittedByUser
         ? {
@@ -154,8 +174,19 @@ export const listApprovalRequests = async (req: AuthRequest, res: Response) => {
       .orderBy((r) => r.createdAt.desc())
       .all();
 
+    const visibleRequests = (
+      await Promise.all(
+        requests.map(async (request) => ({
+          request,
+          visible: await canViewRequest(userId, membership, request),
+        }))
+      )
+    )
+      .filter(({ visible }) => visible)
+      .map(({ request }) => request);
+
     const result = await Promise.all(
-      requests.map(async (request) => {
+      visibleRequests.map(async (request) => {
         const [workflow, document, submittedByUser] = await Promise.all([
           db.orm.public.Workflow.where({ id: request.workflowId }).first(),
           db.orm.public.Document.where({ id: request.documentId }).first(),
@@ -190,6 +221,7 @@ export const listApprovalRequests = async (req: AuthRequest, res: Response) => {
                   stepOrder: step.stepOrder,
                   approverType: step.approverType,
                   approverRoleId: step.approverRoleId,
+                  approverUserId: step.approverUserId,
                   departmentId: step.departmentId,
                 })),
               }
@@ -199,7 +231,7 @@ export const listApprovalRequests = async (req: AuthRequest, res: Response) => {
                 id: document.id,
                 name: document.name,
                 originalName: document.originalName,
-                url: document.url,
+                url: `/api/v1/documents/${document.id}/download`,
               }
             : null,
           submittedByUser: submittedByUser
@@ -240,6 +272,10 @@ export const getApprovalRequest = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "Approval request not found" });
     }
 
+    if (!(await canViewRequest(req.user!.id, membership, request))) {
+      return res.status(403).json({ error: "You do not have access to this approval request" });
+    }
+
     const [workflow, document, submittedByUser, actions] = await Promise.all([
       db.orm.public.Workflow.where({ id: request.workflowId }).first(),
       db.orm.public.Document.where({ id: request.documentId }).first(),
@@ -273,20 +309,21 @@ export const getApprovalRequest = async (req: AuthRequest, res: Response) => {
       currentStep: request.currentStep,
       createdAt: request.createdAt,
       updatedAt: request.updatedAt,
-      workflow: workflow
-        ? {
-            id: workflow.id,
-            name: workflow.name,
-            documentType: workflow.documentType,
-            steps: workflowSteps.map((step) => ({
-              id: step.id,
-              stepOrder: step.stepOrder,
-              approverType: step.approverType,
-              approverRoleId: step.approverRoleId,
-              departmentId: step.departmentId,
-            })),
-          }
-        : null,
+          workflow: workflow
+            ? {
+                id: workflow.id,
+                name: workflow.name,
+                documentType: workflow.documentType,
+                steps: workflowSteps.map((step) => ({
+                  id: step.id,
+                  stepOrder: step.stepOrder,
+                  approverType: step.approverType,
+                  approverRoleId: step.approverRoleId,
+                  approverUserId: step.approverUserId,
+                  departmentId: step.departmentId,
+                })),
+              }
+            : null,
       document: document
         ? {
             id: document.id,
