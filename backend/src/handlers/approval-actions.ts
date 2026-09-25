@@ -45,6 +45,16 @@ export const submitApprovalAction = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "Workflow not found" });
     }
 
+    // Get membership for the approval request's organization
+    const requestMembership = await db.orm.public.OrganizationMember.where({
+      userId,
+      organizationId: approvalRequest.organizationId,
+    }).first();
+
+    if (!requestMembership) {
+      return res.status(403).json({ error: "You do not have access to this organization" });
+    }
+
     const workflowSteps = await db.orm.public.WorkflowStep.where({
       workflowId: workflow.id,
     })
@@ -58,7 +68,7 @@ export const submitApprovalAction = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: "Invalid approval step" });
     }
 
-    const authorized = await isAuthorizedApprover(userId, membership.organizationId, currentStep);
+    const authorized = await isAuthorizedApprover(userId, approvalRequest.organizationId, currentStep, requestMembership);
 
     if (!authorized) {
       return res.status(403).json({ error: "You are not authorized to act on this approval step" });
@@ -137,18 +147,9 @@ async function isAuthorizedApprover(userId: string, organizationId: string, step
   approverRoleId: string | null;
   approverUserId: string | null;
   departmentId: string | null;
-}): Promise<boolean> {
+}, membership: { roleId: string | null; departmentId: string | null }): Promise<boolean> {
   if (step.approverType === "user") {
     return step.approverUserId === userId;
-  }
-
-  const membership = await db.orm.public.OrganizationMember.where({
-    userId,
-    organizationId,
-  }).first();
-
-  if (!membership) {
-    return false;
   }
 
   if (step.approverType === "role") {

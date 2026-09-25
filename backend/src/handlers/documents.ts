@@ -224,17 +224,37 @@ export const listDocuments = async (req: AuthRequest, res: Response) => {
       }))
     );
 
+    const uploadedByUsers = await Promise.all(
+      visibleDocs
+        .filter(({ visible }) => visible)
+        .map(({ doc }) => db.orm.public.User.where({ id: doc.uploadedBy }).first())
+    );
+
     res.status(200).json(
-      visibleDocs.filter(({ visible }) => visible).map(({ doc }) => ({
-        id: doc.id,
-        name: doc.name,
-        originalName: doc.originalName,
-        mimeType: doc.mimeType,
-        size: doc.size,
-        url: `/api/v1/documents/${doc.id}/download`,
-        status: doc.status,
-        createdAt: doc.createdAt,
-      }))
+      visibleDocs
+        .filter(({ visible }) => visible)
+        .map(({ doc }, index) => {
+          const uploadedByUser = uploadedByUsers[index];
+          return {
+            id: doc.id,
+            name: doc.name,
+            originalName: doc.originalName,
+            mimeType: doc.mimeType,
+            size: doc.size,
+            url: `/api/v1/documents/${doc.id}/download`,
+            status: doc.status,
+            createdAt: doc.createdAt,
+            uploadedBy: doc.uploadedBy,
+            uploadedByUser: uploadedByUser
+              ? {
+                  id: uploadedByUser.id,
+                  firstName: uploadedByUser.firstName,
+                  lastName: uploadedByUser.lastName,
+                  email: uploadedByUser.email,
+                }
+              : null,
+          };
+        })
     );
   } catch (error: any) {
     console.error("Document list error:", error);

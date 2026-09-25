@@ -33,6 +33,13 @@ type Document = {
   url?: string
   status: string
   createdAt?: string
+  uploadedBy?: string
+  uploadedByUser?: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+  } | null
 }
 
 type Organization = {
@@ -492,7 +499,11 @@ export default function DocumentsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3">{user?.firstName} {user?.lastName}</td>
+                    <td className="px-4 py-3">
+                        {doc.uploadedByUser
+                          ? `${doc.uploadedByUser.firstName} ${doc.uploadedByUser.lastName}`
+                          : "—"}
+                      </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={doc.status} approvalStatus={approvalStatuses[doc.id]} />
                     </td>
