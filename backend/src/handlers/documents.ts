@@ -213,48 +213,36 @@ export const listDocuments = async (req: AuthRequest, res: Response) => {
 
     const docs = await db.orm.public.Document.where({
       organizationId,
+      uploadedBy: req.user!.id,
     }).orderBy((d) => d.createdAt.desc()).all();
 
-    const visibleDocs = await Promise.all(
-      docs.map(async (doc) => ({
-        doc,
-        visible:
-          doc.uploadedBy === req.user!.id ||
-          (await canAccessAssignedDocument(req.user!.id, membership, doc.id, organizationId)),
-      }))
-    );
-
     const uploadedByUsers = await Promise.all(
-      visibleDocs
-        .filter(({ visible }) => visible)
-        .map(({ doc }) => db.orm.public.User.where({ id: doc.uploadedBy }).first())
+      docs.map((doc) => db.orm.public.User.where({ id: doc.uploadedBy }).first())
     );
 
     res.status(200).json(
-      visibleDocs
-        .filter(({ visible }) => visible)
-        .map(({ doc }, index) => {
-          const uploadedByUser = uploadedByUsers[index];
-          return {
-            id: doc.id,
-            name: doc.name,
-            originalName: doc.originalName,
-            mimeType: doc.mimeType,
-            size: doc.size,
-            url: `/api/v1/documents/${doc.id}/download`,
-            status: doc.status,
-            createdAt: doc.createdAt,
-            uploadedBy: doc.uploadedBy,
-            uploadedByUser: uploadedByUser
-              ? {
-                  id: uploadedByUser.id,
-                  firstName: uploadedByUser.firstName,
-                  lastName: uploadedByUser.lastName,
-                  email: uploadedByUser.email,
-                }
-              : null,
-          };
-        })
+      docs.map((doc, index) => {
+        const uploadedByUser = uploadedByUsers[index];
+        return {
+          id: doc.id,
+          name: doc.name,
+          originalName: doc.originalName,
+          mimeType: doc.mimeType,
+          size: doc.size,
+          url: `/api/v1/documents/${doc.id}/download`,
+          status: doc.status,
+          createdAt: doc.createdAt,
+          uploadedBy: doc.uploadedBy,
+          uploadedByUser: uploadedByUser
+            ? {
+                id: uploadedByUser.id,
+                firstName: uploadedByUser.firstName,
+                lastName: uploadedByUser.lastName,
+                email: uploadedByUser.email,
+              }
+            : null,
+        };
+      })
     );
   } catch (error: any) {
     console.error("Document list error:", error);
